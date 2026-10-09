@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>斩神 · 凡尘神域 · 联调参考页</title>
+<style>
+  :root{
+    --bg:#0e1320; --panel:#161d2e; --line:#27314a; --txt:#e8edf7; --muted:#8a96b3;
+    --blue:#5b8def; --brown:#c89b6a; --red:#e2554f; --green:#4cc38a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif;
+    background:radial-gradient(1200px 600px at 70% -10%,#1c2740 0%,var(--bg) 60%);color:var(--txt);min-height:100vh}
+  .wrap{max-width:760px;margin:0 auto;padding:32px 20px 60px}
+  h1{font-size:22px;margin:0 0 4px;letter-spacing:2px}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:22px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;margin-bottom:18px}
+  .tabs{display:flex;gap:8px;margin-bottom:16px}
+  .tab{flex:1;text-align:center;padding:10px;border-radius:10px;cursor:pointer;background:#10182a;color:var(--muted);border:1px solid var(--line);user-select:none}
+  .tab.on{color:#fff;background:linear-gradient(180deg,#22304f,#19233a);border-color:var(--blue)}
+  label{display:block;font-size:12px;color:var(--muted);margin:12px 0 6px}
+  input,select{width:100%;padding:10px 12px;border-radius:9px;background:#0f1626;color:var(--txt);border:1px solid var(--line);font-size:14px;outline:none}
+  input:focus,select:focus{border-color:var(--blue)}
+  button.act{margin-top:16px;width:100%;padding:11px;border:0;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;
+    background:linear-gradient(180deg,var(--blue),#3f6fd0);color:#fff}
+  button.act:active{transform:translateY(1px)}
+  button.ghost{background:#1a2236;color:var(--txt);border:1px solid var(--line)}
+  .row{display:flex;gap:10px}
+  .row>button{flex:1}
+  pre{background:#0b1120;border:1px solid var(--line);border-radius:10px;padding:12px;overflow:auto;font-size:12px;color:#bcd0f0;max-height:260px}
+  .kv{display:flex;gap:10px;font-size:13px;padding:6px 0;border-bottom:1px dashed var(--line)}
+  .kv span:first-child{color:var(--muted);width:90px;flex:none}
+  .badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:12px;margin-left:8px}
+  .ok{background:rgba(76,195,138,.15);color:var(--green)}
+  .no{background:rgba(226,85,79,.15);color:var(--red)}
+  .note{font-size:12px;color:var(--muted);line-height:1.7;margin-top:6px}
+  .realm-line{display:flex;gap:8px}
+  .realm-line select{flex:1}
+  .hide{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>斩神 · 凡尘神域</h1>
+  <div class="sub">后端联调参考页（同源托管于 Spring Boot，调 <code>/api/user/*</code>）。你的 Tom and Jerry 登录页可用同样的接口与字段对接。</div>
+
+  <!-- 未登录：登录/注册 -->
+  <div id="auth" class="card">
+    <div class="tabs">
+      <div id="tabLogin" class="tab on" onclick="switchTab('login')">进入神域（登录）</div>
+      <div id="tabReg" class="tab" onclick="switchTab('reg')">觉醒禁墟（注册）</div>
+    </div>
+
+    <div id="loginForm">
+      <label>守夜人代号</label>
+      <input id="l_user" placeholder="如 testuser">
+      <label>禁墟密钥</label>
+      <input id="l_pwd" type="password" placeholder="密码">
+      <button class="act" onclick="login()">进入神域</button>
+    </div>
+
+    <div id="regForm" class="hide">
+      <label>守夜人代号</label>
+      <input id="r_user" placeholder="登录名">
+      <label>禁墟密钥</label>
+      <input id="r_pwd" type="password" placeholder="至少 4 位">
+      <label>灵魂烙印（邮箱，可选）</label>
+      <input id="r_email" placeholder="xxx@xxx.com">
+      <label>禁墟境界</label>
+      <select id="r_realm">
+        <option value="盏境">盏境</option><option value="池境">池境</option>
+        <option value="川境" selected>川境</option><option value="海境">海境</option>
+      </select>
+      <button class="act" onclick="register()">觉醒禁墟</button>
+    </div>
+  </div>
+
+  <!-- 已登录：神域面板 -->
+  <div id="realm" class="card hide">
+    <div style="display:flex;align-items:center">
+      <strong>神域已开</strong>
+      <span id="authBadge" class="badge ok">已认证</span>
+    </div>
+    <div id="userCard" style="margin-top:14px"></div>
+    <div class="row" style="margin-top:16px">
+      <button class="act ghost" onclick="loadMe()">获取我的信息（/me）</button>
+      <button class="act ghost" onclick="refresh()">刷新令牌（/refresh）</button>
+    </div>
+    <button class="act ghost" style="margin-top:10px" onclick="logout()">退出神域（登出）</button>
+  </div>
+
+  <!-- 响应日志 -->
+  <div class="card">
+    <strong style="font-size:14px">接口响应</strong>
+    <div class="note">所有请求走同源 <code>/api/user/*</code>；access 令牌 15 分钟过期，过期会自动用 refresh 续期。</div>
+    <pre id="log">// 点击上方按钮，这里会显示每个接口的响应</pre>
+  </div>
+</div>
+
+<script>
+const API = '/api/user';
+let state = JSON.parse(localStorage.getItem('zhanShen') || '{}');
+
+function save(){ localStorage.setItem('zhanShen', JSON.stringify(state)); }
+function log(obj){ document.getElementById('log').textContent = JSON.stringify(obj, null, 2); }
+function switchTab(t){
+  document.getElementById('tabLogin').classList.toggle('on', t==='login');
+  document.getElementById('tabReg').classList.toggle('on', t==='reg');
+  document.getElementById('loginForm').classList.toggle('hide', t!=='login');
+  document.getElementById('regForm').classList.toggle('hide', t!=='reg');
+}
+
+async function api(path, opts={}){
+  opts.headers = Object.assign({'Content-Type':'application/json'}, opts.headers||{});
+  if(state.accessToken) opts.headers['Authorization'] = 'Bearer ' + state.accessToken;
+  let res = await fetch(API+path, opts);
+  if(res.status===401 && path!=='/refresh' && state.refreshToken){
+    const ok = await doRefresh();           // 令牌过期，自动续期一次
+    if(ok) res = await fetch(API+path, opts);
+  }
+  let body;
+  try { body = await res.json(); } catch(e){ body = {code:res.status, msg:await res.text()}; }
+  return body;
+}
+
+async function doRefresh(){
+  try{
+    const r = await fetch(API+'/refresh', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({refreshToken: state.refreshToken})});
+    const b = await r.json();
+    if(b.code===0 && b.data){
+      state.accessToken = b.data.accessToken || b.data.token;
+      state.refreshToken = b.data.refreshToken;
+      state.user = b.data.user;
+      save(); render();
+      return true;
+    }
+    // refresh 也失败 → 清空登录态
+    state = {}; save(); render();
+    return false;
+  }catch(e){ return false; }
+}
+
+function applyLogin(data){
+  state.accessToken = data.accessToken || data.token;
+  state.refreshToken = data.refreshToken;
+  state.user = data.user;
+  save(); render();
+}
+
+async function login(){
+  const body = {username:val('l_user'), password:val('l_pwd')};
+  const r = await api('/login', {method:'POST', body:JSON.stringify(body)});
+  log(r);
+  if(r.code===0) applyLogin(r.data);
+}
+
+async function register(){
+  const body = {username:val('r_user'), password:val('r_pwd'), email:val('r_email'), realm:val('r_realm')};
+  const r = await api('/register', {method:'POST', body:JSON.stringify(body)});
+  log(r);
+  if(r.code===0) applyLogin(r.data);
+}
+
+async function loadMe(){
+  const r = await api('/me', {method:'GET'});
+  log(r);
+  if(r.code===0){ state.user = r.data; save(); render(); }
+}
+
+async function refresh(){
+  // 直接用当前 refresh token 调一次，演示续期
+  const r = await api('/refresh', {method:'POST', body:JSON.stringify({refreshToken: state.refreshToken})});
+  log(r);
+  if(r.code===0) applyLogin(r.data);
+}
+
+function logout(){ state = {}; save(); render(); log('// 已登出，本地令牌已清除'); }
+
+function val(id){ return document.getElementById(id).value.trim(); }
+
+function render(){
+  const authed = !!state.accessToken;
+  document.getElementById('auth').classList.toggle('hide', authed);
+  document.getElementById('realm').classList.toggle('hide', !authed);
+  if(authed && state.user){
+    const u = state.user;
+    document.getElementById('userCard').innerHTML = `
+      <div class="kv"><span>ID</span><span>${u.id ?? ''}</span></div>
+      <div class="kv"><span>代号</span><span>${u.username ?? ''}</span></div>
+      <div class="kv"><span>邮箱</span><span>${u.email ?? '—'}</span></div>
+      <div class="kv"><span>境界</span><span>${u.realm ?? ''}</span></div>
+      <div class="kv"><span>状态</span><span>${u.status===1 ? '已封印' : '正常'}</span></div>`;
+  }
+}
+
+render();
+</script>
+</body>
+</html>

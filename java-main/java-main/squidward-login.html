@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>章鱼哥 · 登录 / 注册</title>
+<style>
+  :root{
+    --ocean-top:#1b3a8f;
+    --ocean-mid:#2f6fd6;
+    --ocean-bot:#7ec8f0;
+    --squid-skin:#7ec9c4;
+    --squid-skin-dark:#5a9e9a;
+    --squid-shirt:#9b6a4a;
+    --card-bg:rgba(255,255,255,.92);
+    --accent:#ff7a59;
+    --accent-dark:#e85d3a;
+    --ink:#22354a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;}
+  body{
+    font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:linear-gradient(180deg,var(--ocean-top) 0%,var(--ocean-mid) 45%,var(--ocean-bot) 100%);
+    overflow:hidden;
+    display:flex;align-items:center;justify-content:center;
+    color:var(--ink);
+  }
+
+  /* ===== Ocean scene ===== */
+  .scene{position:fixed;inset:0;overflow:hidden;z-index:0;}
+
+  /* light rays */
+  .ray{
+    position:absolute;top:-20%;left:0;width:40%;height:160%;
+    background:linear-gradient(105deg,rgba(255,255,255,.18),transparent 60%);
+    transform:rotate(8deg);filter:blur(6px);
+    animation:rayShift 9s ease-in-out infinite;
+  }
+  .ray.r2{left:55%;width:30%;animation-delay:-4s;opacity:.7;}
+  @keyframes rayShift{0%,100%{opacity:.5;transform:rotate(8deg) translateX(0);}50%{opacity:.9;transform:rotate(8deg) translateX(40px);}}
+
+  /* seabed */
+  .seabed{
+    position:absolute;bottom:-2%;left:0;width:100%;height:22%;
+    background:radial-gradient(120% 100% at 50% 0%,#d9c08a 0%,#bfa566 60%,#a98c4f 100%);
+    border-radius:50% 50% 0 0/40% 40% 0 0;
+    box-shadow:inset 0 12px 30px rgba(0,0,0,.15);
+  }
+  .seaweed{position:absolute;bottom:8%;width:18px;transform-origin:bottom center;animation:sway 5s ease-in-out infinite;}
+  .seaweed.s1{left:12%;height:120px;background:linear-gradient(#3fa34d,#2c7a39);border-radius:9px;}
+  .seaweed.s2{left:18%;height:170px;animation-delay:-2s;background:linear-gradient(#48b95a,#2f8a40);border-radius:9px;}
+  .seaweed.s3{right:14%;height:140px;animation-delay:-1s;background:linear-gradient(#3fa34d,#2c7a39);border-radius:9px;}
+  @keyframes sway{0%,100%{transform:rotate(-6deg);}50%{transform:rotate(6deg);}}
+
+  /* ===== Squidward ===== */
+  .squid{
+    position:absolute;bottom:6%;left:50%;transform:translateX(-50%);
+    width:340px;height:560px;z-index:1;
+    animation:breathe 4s ease-in-out infinite;
+    transform-origin:bottom center;
+  }
+  @keyframes breathe{0%,100%{transform:translateX(-50%) translateY(0) scale(1);}50%{transform:translateX(-50%) translateY(-10px) scale(1.015);}}
+  .squid .head{animation:headSway 6s ease-in-out infinite;transform-origin:50% 80%;}
+  @keyframes headSway{0%,100%{transform:rotate(-2.5deg);}50%{transform:rotate(2.5deg);}}
+
+  /* eyes blink */
+  .eyelid{transform-origin:center;transform:scaleY(0);animation:blink 5.5s infinite;}
+  @keyframes blink{0%,92%,100%{transform:scaleY(0);}95%{transform:scaleY(1);}97%{transform:scaleY(0);}}
+
+  /* clarinet sway */
+  .clarinet{transform-origin:80% 20%;animation:clarinetPlay 2.2s ease-in-out infinite;}
+  @keyframes clarinetPlay{0%,100%{transform:rotate(-4deg);}50%{transform:rotate(6deg);}}
+
+  /* bubbles */
+  .bubble{
+    position:absolute;bottom:-40px;border-radius:50%;
+    background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.9),rgba(255,255,255,.25) 60%,transparent 70%);
+    border:1px solid rgba(255,255,255,.4);
+    animation:rise linear infinite;
+  }
+  @keyframes rise{
+    0%{transform:translateY(0) translateX(0);opacity:0;}
+    10%{opacity:.9;}
+    90%{opacity:.8;}
+    100%{transform:translateY(-110vh) translateX(30px);opacity:0;}
+  }
+
+  /* ===== Login/Register card ===== */
+  .wrap{position:relative;z-index:5;width:min(92vw,400px);}
+  .card{
+    background:var(--card-bg);
+    border-radius:26px;
+    padding:30px 28px 26px;
+    box-shadow:0 24px 60px rgba(13,38,76,.45),0 0 0 1px rgba(255,255,255,.4) inset;
+    backdrop-filter:blur(8px);
+    animation:cardIn .8s cubic-bezier(.2,.8,.2,1) both;
+  }
+  @keyframes cardIn{from{opacity:0;transform:translateY(40px) scale(.94);}to{opacity:1;transform:none;}}
+
+  .tabs{display:flex;background:#e7eefc;border-radius:14px;padding:5px;margin-bottom:22px;position:relative;}
+  .tab{
+    flex:1;text-align:center;padding:11px 0;font-weight:700;font-size:15px;
+    color:#6b7c93;cursor:pointer;z-index:2;transition:color .35s;border:none;background:none;
+    position:relative;
+  }
+  .tab.active{color:#fff;}
+  .slider{
+    position:absolute;top:5px;left:5px;height:calc(100% - 10px);width:calc(50% - 5px);
+    background:linear-gradient(135deg,var(--accent),var(--accent-dark));
+    border-radius:11px;transition:transform .4s cubic-bezier(.4,1.4,.5,1);
+    box-shadow:0 6px 16px rgba(232,93,58,.45);z-index:1;
+  }
+  .slider.right{transform:translateX(100%);}
+
+  h1.title{font-size:21px;text-align:center;margin-bottom:4px;color:#16263d;}
+  p.sub{text-align:center;font-size:13px;color:#7a8aa0;margin-bottom:20px;}
+
+  .field{position:relative;margin-bottom:15px;}
+  .field input{
+    width:100%;padding:14px 16px 14px 44px;font-size:15px;
+    border:1.7px solid #d7e0ee;border-radius:13px;background:#fbfdff;
+    outline:none;transition:border-color .25s,box-shadow .25s;
+  }
+  .field input:focus{border-color:var(--accent);box-shadow:0 0 0 4px rgba(255,122,89,.15);}
+  .field .ic{
+    position:absolute;left:14px;top:50%;transform:translateY(-50%);
+    width:20px;height:20px;color:#9fb0c6;
+  }
+  .field .toggle-pw{
+    position:absolute;right:12px;top:50%;transform:translateY(-50%);
+    cursor:pointer;color:#9fb0c6;background:none;border:none;font-size:13px;
+  }
+  .row{display:flex;justify-content:space-between;align-items:center;font-size:13px;margin:-2px 2px 18px;color:#6b7c93;}
+  .row label{display:flex;align-items:center;gap:6px;cursor:pointer;}
+  .row a{color:var(--accent);text-decoration:none;font-weight:600;}
+  .row a:hover{text-decoration:underline;}
+
+  .btn{
+    width:100%;padding:14px;border:none;border-radius:13px;cursor:pointer;
+    font-size:16px;font-weight:800;color:#fff;letter-spacing:1px;
+    background:linear-gradient(135deg,var(--accent),var(--accent-dark));
+    box-shadow:0 10px 24px rgba(232,93,58,.4);
+    transition:transform .15s,box-shadow .25s;
+  }
+  .btn:hover{transform:translateY(-2px);box-shadow:0 14px 30px rgba(232,93,58,.55);}
+  .btn:active{transform:translateY(0) scale(.98);}
+
+  .forms{position:relative;}
+  .form{display:none;animation:formIn .45s ease both;}
+  .form.show{display:block;}
+  @keyframes formIn{from{opacity:0;transform:translateX(18px);}to{opacity:1;transform:none;}}
+
+  .hint{font-size:12px;color:#e85d3a;min-height:16px;margin-top:-6px;margin-bottom:8px;text-align:center;}
+  .social{display:flex;gap:12px;margin-top:18px;}
+  .social button{
+    flex:1;display:flex;align-items:center;justify-content:center;gap:7px;
+    padding:11px;border:1.6px solid #dde5f2;border-radius:12px;background:#fff;
+    cursor:pointer;font-size:13px;font-weight:600;color:#5a6b82;transition:border-color .2s,transform .15s;
+  }
+  .social button:hover{border-color:var(--accent);transform:translateY(-2px);}
+
+  .credit{text-align:center;font-size:12px;color:rgba(255,255,255,.7);margin-top:16px;z-index:5;position:relative;}
+</style>
+</head>
+<body>
+
+<!-- ===== animated ocean scene ===== -->
+<div class="scene">
+  <div class="ray"></div>
+  <div class="ray r2"></div>
+  <div class="seabed"></div>
+  <div class="seaweed s1"></div>
+  <div class="seaweed s2"></div>
+  <div class="seaweed s3"></div>
+
+  <!-- ===== Squidward (stylized SVG) ===== -->
+  <svg class="squid" viewBox="0 0 340 560" xmlns="http://www.w3.org/2000/svg">
+    <!-- legs / tentacles -->
+    <g fill="var(--squid-skin)" stroke="var(--squid-skin-dark)" stroke-width="3">
+      <path d="M120 430 q-18 50 -6 110 q4 14 14 2 q6 -10 2 -22 q-2 -40 6 -86 z"/>
+      <path d="M150 440 q-10 56 0 108 q3 12 13 4 q5 -10 0 -22 q-6 -42 2 -86 z"/>
+      <path d="M196 440 q10 56 0 108 q-3 12 -13 4 q-5 -10 0 -22 q6 -42 -2 -86 z"/>
+      <path d="M226 430 q18 50 6 110 q-4 14 -14 2 q-6 -10 -2 -22 q2 -40 -6 -86 z"/>
+    </g>
+    <!-- shirt -->
+    <path d="M104 360 q66 -34 132 0 l8 90 q-74 30 -148 0 z" fill="var(--squid-shirt)"/>
+    <path d="M104 360 q66 -34 132 0" fill="none" stroke="#7d5238" stroke-width="3"/>
+    <!-- arms -->
+    <g fill="var(--squid-skin)" stroke="var(--squid-skin-dark)" stroke-width="3">
+      <!-- left arm holding nothing -->
+      <path d="M118 372 q-40 18 -52 56 q-4 12 8 12 q8 0 10 -10 q8 -28 40 -42 z"/>
+    </g>
+    <!-- right arm with clarinet -->
+    <g class="clarinet" fill="var(--squid-skin)" stroke="var(--squid-skin-dark)" stroke-width="3">
+      <path d="M222 372 q42 6 64 -14 q10 -8 1 -16 q-9 -6 -16 2 q-18 16 -48 14 z"/>
+    </g>
+
+    <!-- ===== HEAD (swings) ===== -->
+    <g class="head">
+      <!-- big bulbous head -->
+      <path d="M170 70
+               C 110 70 78 120 80 175
+               C 82 250 120 300 170 300
+               C 220 300 258 250 260 175
+               C 262 120 230 70 170 70 Z"
+            fill="var(--squid-skin)" stroke="var(--squid-skin-dark)" stroke-width="3"/>
+      <!-- forehead highlight -->
+      <ellipse cx="150" cy="120" rx="26" ry="34" fill="rgba(255,255,255,.18)"/>
+
+      <!-- eye stalks -->
+      <g fill="var(--squid-skin)" stroke="var(--squid-skin-dark)" stroke-width="3">
+        <rect x="120" y="40" width="20" height="44" rx="10"/>
+        <rect x="200" y="40" width="20" height="44" rx="10"/>
+      </g>
+      <!-- eyes -->
+      <g>
+        <circle cx="130" cy="48" r="26" fill="#fff" stroke="var(--squid-skin-dark)" stroke-width="3"/>
+        <circle cx="210" cy="48" r="26" fill="#fff" stroke="var(--squid-skin-dark)" stroke-width="3"/>
+        <circle cx="134" cy="52" r="11" fill="#1d2b3a"/>
+        <circle cx="206" cy="52" r="11" fill="#1d2b3a"/>
+        <circle cx="138" cy="48" r="3.5" fill="#fff"/>
+        <circle cx="210" cy="48" r="3.5" fill="#fff"/>
+        <!-- eyelids for blink -->
+        <rect class="eyelid" x="104" y="24" width="52" height="48" rx="22" fill="var(--squid-skin)"/>
+        <rect class="eyelid" x="184" y="24" width="52" height="48" rx="22" fill="var(--squid-skin)"/>
+      </g>
+
+      <!-- big nose -->
+      <path d="M170 110 q-6 70 -22 96 q-6 10 8 12 q16 2 30 -8 q10 -8 4 -16 q-14 -36 -20 -84 z"
+            fill="var(--squid-skin-dark)" stroke="#3f7a76" stroke-width="2"/>
+      <!-- mouth (classic Squidward flat frown) -->
+      <path d="M130 250 q40 -14 80 0" fill="none" stroke="#3f7a76" stroke-width="3" stroke-linecap="round"/>
+      <!-- cheek dimples -->
+      <circle cx="118" cy="220" r="4" fill="#5a9e9a"/>
+      <circle cx="222" cy="220" r="4" fill="#5a9e9a"/>
+    </g>
+
+    <!-- clarinet -->
+    <g class="clarinet">
+      <rect x="262" y="300" width="14" height="120" rx="6" fill="#caa24a" stroke="#8a6c25" stroke-width="2" transform="rotate(18 269 360)"/>
+      <circle cx="300" cy="330" r="9" fill="#caa24a" stroke="#8a6c25" stroke-width="2"/>
+    </g>
+  </svg>
+</div>
+
+<!-- ===== Login / Register card ===== -->
+<div class="wrap">
+  <div class="card">
+    <div class="tabs">
+      <button class="tab active" id="tabLogin" onclick="switchTo('login')">登录</button>
+      <button class="tab" id="tabReg" onclick="switchTo('reg')">注册</button>
+      <div class="slider" id="slider"></div>
+    </div>
+
+    <h1 class="title" id="title">欢迎回来，邻居</h1>
+    <p class="sub" id="subtitle">比奇堡的快乐入口 · 章鱼哥在等你</p>
+
+    <div class="forms">
+      <!-- LOGIN -->
+      <form class="form show" id="formLogin" onsubmit="return handleLogin(event)">
+        <div class="field">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+          <input type="text" id="loginUser" placeholder="用户名 / 邮箱" autocomplete="username">
+        </div>
+        <div class="field">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+          <input type="password" id="loginPwd" placeholder="密码" autocomplete="current-password">
+          <button type="button" class="toggle-pw" onclick="togglePw('loginPwd',this)">显示</button>
+        </div>
+        <div class="row">
+          <label><input type="checkbox" checked> 记住我</label>
+          <a href="#" onclick="return false">忘记密码？</a>
+        </div>
+        <div class="hint" id="loginHint"></div>
+        <button class="btn" type="submit">登 录</button>
+        <div class="social">
+          <button type="button">🐠 蟹堡账号</button>
+          <button type="button">🐙 章鱼通</button>
+        </div>
+      </form>
+
+      <!-- REGISTER -->
+      <form class="form" id="formReg" onsubmit="return handleReg(event)">
+        <div class="field">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+          <input type="text" id="regUser" placeholder="给自己起个名" autocomplete="username">
+        </div>
+        <div class="field">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18v12H3z"/><path d="m3 7 9 6 9-6"/></svg>
+          <input type="email" id="regEmail" placeholder="邮箱地址" autocomplete="email">
+        </div>
+        <div class="field">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+          <input type="password" id="regPwd" placeholder="设置密码（≥6位）" autocomplete="new-password">
+          <button type="button" class="toggle-pw" onclick="togglePw('regPwd',this)">显示</button>
+        </div>
+        <div class="row">
+          <label><input type="checkbox" id="agree"> 我同意《比奇堡用户协议》</label>
+        </div>
+        <div class="hint" id="regHint"></div>
+        <button class="btn" type="submit">注 册</button>
+      </form>
+    </div>
+  </div>
+</div>
+<div class="credit">© 比奇堡海底社区 · 一只想安静吹单簧管的章鱼</div>
+
+<script>
+  // generate bubbles
+  const scene=document.querySelector('.scene');
+  for(let i=0;i<18;i++){
+    const b=document.createElement('div');
+    b.className='bubble';
+    const size=6+Math.random()*22;
+    b.style.width=size+'px';b.style.height=size+'px';
+    b.style.left=Math.random()*100+'%';
+    b.style.animationDuration=(7+Math.random()*9)+'s';
+    b.style.animationDelay=(-Math.random()*12)+'s';
+    scene.appendChild(b);
+  }
+
+  function switchTo(mode){
+    const login=mode==='login';
+    document.getElementById('tabLogin').classList.toggle('active',login);
+    document.getElementById('tabReg').classList.toggle('active',!login);
+    document.getElementById('slider').classList.toggle('right',!login);
+    document.getElementById('formLogin').classList.toggle('show',login);
+    document.getElementById('formReg').classList.toggle('show',!login);
+    document.getElementById('title').textContent=login?'欢迎回来，邻居':'加入比奇堡吧';
+    document.getElementById('subtitle').textContent=login?'比奇堡的快乐入口 · 章鱼哥在等你':'和章鱼哥做邻居，一起吹单簧管';
+  }
+
+  function togglePw(id,btn){
+    const el=document.getElementById(id);
+    if(el.type==='password'){el.type='text';btn.textContent='隐藏';}
+    else{el.type='password';btn.textContent='显示';}
+  }
+
+  function handleLogin(e){
+    e.preventDefault();
+    const u=document.getElementById('loginUser').value.trim();
+    const p=document.getElementById('loginPwd').value;
+    const hint=document.getElementById('loginHint');
+    if(!u||!p){hint.textContent='用户名和密码都不能为空哦～';return false;}
+    hint.style.color='#2c9b54';hint.textContent='登录成功！正在前往比奇堡…';
+    return false;
+  }
+
+  function handleReg(e){
+    e.preventDefault();
+    const u=document.getElementById('regUser').value.trim();
+    const em=document.getElementById('regEmail').value.trim();
+    const p=document.getElementById('regPwd').value;
+    const agree=document.getElementById('agree').checked;
+    const hint=document.getElementById('regHint');
+    if(!u){hint.textContent='请先给自己起个名字';return false;}
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)){hint.textContent='邮箱格式好像不太对';return false;}
+    if(p.length<6){hint.textContent='密码至少要有 6 位';return false;}
+    if(!agree){hint.textContent='请先同意用户协议';return false;}
+    hint.style.color='#2c9b54';hint.textContent='注册成功！欢迎来到海底世界 🐙';
+    return false;
+  }
+</script>
+</body>
+</html>
