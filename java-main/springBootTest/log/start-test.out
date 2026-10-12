@@ -1,0 +1,17 @@
+﻿============================================================
+ ZhanShen backend launcher
+============================================================
+[OK] Java found
+[OK] MySQL 3306 is listening
+[OK] Port 8081 is free
+[OK] Jar ready: C:\Users\Administrator\Desktop\java-main\java-main\java-main\springBootTest\target\springBootTest-0.0.1-SNAPSHOT.jar
+[INFO] Starting service (profile=dev, port=8081)...
+[INFO] Waiting for service to be ready...
+
+============================================================
+ [SUCCESS] Backend is up: http://localhost:8081/
+  - Swagger : http://localhost:8081/swagger-ui.html
+  - Health  : http://localhost:8081/actuator/health
+  - Log     : C:\Users\Administrator\Desktop\java-main\java-main\java-main\springBootTest\log\start-20261012-092832.log
+  - Stop    : run stop-backend.bat
+============================================================

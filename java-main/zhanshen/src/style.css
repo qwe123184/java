@@ -1,0 +1,33 @@
+:root {
+  --bg-0: #04050d;
+  --bg-1: #0a0e1f;
+  --cyan: #2ee6ff;
+  --violet: #b14dff;
+  --pink: #ff4d8d;
+  --gold: #f5d27a;
+  --ink: #cdd6ff;
+  --ink-dim: #7b86b8;
+  --glass: rgba(18, 22, 48, 0.55);
+  --glass-bd: rgba(120, 150, 255, 0.22);
+  --neon: 0 0 18px rgba(46, 230, 255, .55), 0 0 42px rgba(177, 77, 255, .35);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body, #app { height: 100%; }
+
+body {
+  font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  background:
+    radial-gradient(1200px 800px at 75% -10%, rgba(177, 77, 255, .18), transparent 60%),
+    radial-gradient(1000px 700px at 10% 110%, rgba(46, 230, 255, .14), transparent 60%),
+    linear-gradient(160deg, var(--bg-1), var(--bg-0) 70%);
+  color: var(--ink);
+  overflow: hidden;
+  position: relative;
+}
+
+/* 暗角 */
+body::after {
+  content: ""; position: fixed; inset: 0; z-index: 1; pointer-events: none;
+  background: radial-gradient(120% 120% at 50% 40%, transparent 55%, rgba(0,0,0,.55) 100%);
+}
