@@ -1,5 +1,0 @@
-﻿============================================================
- ZhanShen backend stopper (port 8081)
-============================================================
-[INFO] Found PID 2060 listening on 8081. Checking process type...
-[OK] Backend process PID=2060 has been stopped.
