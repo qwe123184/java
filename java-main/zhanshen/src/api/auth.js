@@ -11,15 +11,15 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// 响应拦截：401（令牌失效）时清理会话，交由路由守卫回登录页
+// 响应拦截：401（令牌失效）时清理会话，并按当前所在模块回对应登录页
 api.interceptors.response.use(
   (res) => res,
   (error) => {
     if (error.response?.status === 401) {
       clearSession()
-      if (location.hash !== '#/' && location.pathname !== '/') {
-        location.hash = '#/'
-      }
+      // 在后台模块则回后台登录页，否则回首页登录页
+      const onAdmin = location.hash.startsWith('#/admin')
+      location.hash = onAdmin ? '#/admin/login' : '#/'
     }
     return Promise.reject(error)
   }
@@ -34,6 +34,16 @@ export function register(payload) {
 // 进入神域（登录）
 export function login(payload) {
   return api.post('/user/login', payload)
+}
+
+// 执政官进入后台（管理员登录，仅 ADMIN 角色）
+export function adminLogin(payload) {
+  return api.post('/admin/login', payload)
+}
+
+// 获取当前执政官信息
+export function adminProfile() {
+  return api.get('/admin/me')
 }
 
 // 以刷新令牌换发新令牌对

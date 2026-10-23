@@ -14,6 +14,7 @@ public class UserVO implements Serializable {
     private String username;
     private String email;
     private String realm;
+    private String role;
     private Integer status;
     private LocalDateTime createTime;
 
@@ -26,6 +27,7 @@ public class UserVO implements Serializable {
         vo.setUsername(u.getUsername());
         vo.setEmail(u.getEmail());
         vo.setRealm(u.getRealm());
+        vo.setRole(u.getRole());
         vo.setStatus(u.getStatus());
         vo.setCreateTime(u.getCreateTime());
         return vo;
@@ -61,6 +63,14 @@ public class UserVO implements Serializable {
 
     public void setRealm(String realm) {
         this.realm = realm;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
     }
 
     public Integer getStatus() {

@@ -22,6 +22,16 @@ public interface UserService {
     Result<LoginVO> login(LoginRequest req);
 
     /**
+     * 执政官进入后台（管理员登录），仅 ADMIN 角色可登录
+     */
+    Result<LoginVO> adminLogin(LoginRequest req);
+
+    /**
+     * 判断指定用户是否为后台管理员（ADMIN）；非 ADMIN 或不存在返回 false
+     */
+    boolean isAdmin(Long userId);
+
+    /**
      * 按 ID 查询用户视图（不含密码等敏感字段）；不存在返回 null
      */
     UserVO getUserById(Long id);

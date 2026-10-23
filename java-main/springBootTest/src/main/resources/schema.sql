@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS `zhan_shen`.`t_user` (
   `password`    VARCHAR(100) NOT NULL,
   `email`       VARCHAR(120) DEFAULT NULL,
   `realm`       VARCHAR(20)  NOT NULL DEFAULT '池境',
+  `role`        VARCHAR(20)  NOT NULL DEFAULT 'USER' COMMENT '角色：USER/ADMIN',
   `status`      TINYINT      NOT NULL DEFAULT 0,
   `create_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `update_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -19,6 +20,9 @@ CREATE TABLE IF NOT EXISTS `zhan_shen`.`t_user` (
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_general_ci;
+
+-- 兼容已存在的旧表：补齐 role 列（首次创建已含该列时此句因列已存在而失败，被 continue-on-error 忽略）
+ALTER TABLE `zhan_shen`.`t_user` ADD COLUMN `role` VARCHAR(20) NOT NULL DEFAULT 'USER' COMMENT '角色：USER/ADMIN';
 
 -- 神域档案表（首页展示 / 检索的数据源：禁墟、神秘、守夜人、任务指令等）
 CREATE TABLE IF NOT EXISTS `zhan_shen`.`t_archive` (

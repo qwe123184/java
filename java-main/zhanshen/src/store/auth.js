@@ -44,6 +44,7 @@ export function clearSession() {
 export function useAuth() {
   const isAuthed = computed(() => !!session.accessToken)
   const user = computed(() => session.user)
+  const isAdmin = computed(() => session.user?.role === 'ADMIN')
 
   // 登录/注册成功后写入会话
   function setSession(user, accessToken, refreshToken) {
@@ -57,5 +58,5 @@ export function useAuth() {
     clearSession()
   }
 
-  return { isAuthed, user, setSession, logout }
+  return { isAuthed, isAdmin, user, setSession, logout }
 }

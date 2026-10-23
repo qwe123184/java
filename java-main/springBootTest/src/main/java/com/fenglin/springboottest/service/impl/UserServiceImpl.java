@@ -112,6 +112,47 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public Result<LoginVO> adminLogin(LoginRequest req) {
+        if (req == null || !StringUtils.hasText(req.getUsername()) || !StringUtils.hasText(req.getPassword())) {
+            return Result.fail("请先留下执政官代号与管理密钥。");
+        }
+        String username = req.getUsername().trim();
+        String password = req.getPassword().trim();
+
+        User user = userMapper.selectOne(
+                new LambdaQueryWrapper<User>().eq(User::getUsername, username));
+        if (user == null) {
+            return Result.fail("执政官代号未登记，禁止入内。");
+        }
+        if (user.getStatus() != null && user.getStatus() == 1) {
+            return Result.fail("该执政官已被诸神封印，禁止进入后台。");
+        }
+        if (!"ADMIN".equals(user.getRole())) {
+            return Result.fail("你并非神域执政官，无权进入后台管理系统。");
+        }
+        if (!encoder.matches(password, user.getPassword())) {
+            return Result.fail("管理密钥有误，禁入后台。");
+        }
+
+        // 签发双令牌（access + refresh）
+        String access = jwtUtil.generateAccessToken(user.getId(), username);
+        String refresh = jwtUtil.generateRefreshToken(user.getId(), username);
+
+        LoginVO vo = new LoginVO(access, UserVO.fromEntity(user));
+        vo.setRefreshToken(refresh);
+        return Result.success("执政官「" + username + "」已就位，凡尘神域尽在掌握。", vo);
+    }
+
+    @Override
+    public boolean isAdmin(Long userId) {
+        if (userId == null) {
+            return false;
+        }
+        User user = userMapper.selectById(userId);
+        return user != null && "ADMIN".equals(user.getRole());
+    }
+
+    @Override
     public Result<LoginVO> refresh(String refreshToken) {
         if (!jwtUtil.isRefreshToken(refreshToken)) {
             return Result.fail("刷新令牌无效或格式有误。");

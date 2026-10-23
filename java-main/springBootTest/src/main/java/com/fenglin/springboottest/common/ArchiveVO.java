@@ -3,6 +3,7 @@ package com.fenglin.springboottest.common;
 import com.fenglin.springboottest.entity.Archive;
 
 import java.io.Serializable;
+import java.time.LocalDateTime;
 
 /**
  * 神域档案对外视图对象（描述字段映射为前端约定的 desc）
@@ -19,6 +20,10 @@ public class ArchiveVO implements Serializable {
     private String desc;
     /** 排序值（越大越靠前），前端用于「排行」页战力条 */
     private Integer sort;
+    /** 展示状态：0 下架 / 1 展示 */
+    private Integer status;
+    /** 创建时间（后台管理展示用） */
+    private LocalDateTime createTime;
 
     public static ArchiveVO fromEntity(Archive a) {
         if (a == null) {
@@ -31,6 +36,8 @@ public class ArchiveVO implements Serializable {
         vo.setRealm(a.getRealm());
         vo.setDesc(a.getDescription());
         vo.setSort(a.getSort());
+        vo.setStatus(a.getStatus());
+        vo.setCreateTime(a.getCreateTime());
         return vo;
     }
 
@@ -80,5 +87,21 @@ public class ArchiveVO implements Serializable {
 
     public void setSort(Integer sort) {
         this.sort = sort;
+    }
+
+    public Integer getStatus() {
+        return status;
+    }
+
+    public void setStatus(Integer status) {
+        this.status = status;
+    }
+
+    public LocalDateTime getCreateTime() {
+        return createTime;
+    }
+
+    public void setCreateTime(LocalDateTime createTime) {
+        this.createTime = createTime;
     }
 }

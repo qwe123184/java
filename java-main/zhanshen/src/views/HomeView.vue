@@ -13,6 +13,11 @@ function onLogout() {
   router.push('/')
 }
 
+// 进入后台管理系统（未登录管理员会被守卫引导至后台登录页）
+function goAdmin() {
+  router.push('/admin')
+}
+
 // 进入神域时以访问令牌拉取最新守夜人信息，确保会话有效（保留已有后端接口调用）
 onMounted(async () => {
   if (!user.value) {
@@ -190,6 +195,10 @@ function closeDetail() {
           {{ n.label }}
         </li>
       </ul>
+
+      <button class="admin-entry" @click="goAdmin" title="进入后台管理系统">
+        <span class="gear">⚙</span> 后台管理
+      </button>
 
       <div class="user">
         <span class="avatar">{{ (user?.username || '无')[0] }}</span>
@@ -403,6 +412,25 @@ function closeDetail() {
   border-color: rgba(120,150,255,.35);
   box-shadow: 0 0 16px rgba(46,230,255,.2);
 }
+
+/* 后台管理入口按钮 */
+.admin-entry {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 16px; border-radius: 10px; cursor: pointer;
+  font-family: inherit; font-size: 13.5px; letter-spacing: .08em; white-space: nowrap;
+  color: var(--gold);
+  background: linear-gradient(100deg, rgba(245,210,122,.14), rgba(255,77,141,.12));
+  border: 1px solid rgba(245,210,122,.4);
+  box-shadow: 0 0 14px rgba(245,210,122,.18);
+  transition: .2s;
+}
+.admin-entry .gear { font-size: 15px; line-height: 1; }
+.admin-entry:hover {
+  color: #fff; transform: translateY(-1px);
+  border-color: var(--pink);
+  box-shadow: 0 0 22px rgba(245,210,122,.4), 0 0 14px rgba(255,77,141,.3);
+}
+.admin-entry:active { transform: translateY(0); }
 
 .user { display: flex; align-items: center; gap: 10px; white-space: nowrap; font-size: 13.5px; color: var(--ink-dim); }
 .avatar {

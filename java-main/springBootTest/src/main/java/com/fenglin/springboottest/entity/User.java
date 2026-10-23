@@ -33,6 +33,9 @@ public class User implements Serializable {
     /** 禁墟境界：盏境 / 池境 / 川境 / 海境 */
     private String realm;
 
+    /** 角色：USER（守夜人）/ ADMIN（神域执政官，可进入后台管理系统） */
+    private String role;
+
     /** 账号状态：0 正常 / 1 已封禁 */
     private Integer status;
 
@@ -85,6 +88,14 @@ public class User implements Serializable {
 
     public void setRealm(String realm) {
         this.realm = realm;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
     }
 
     public Integer getStatus() {

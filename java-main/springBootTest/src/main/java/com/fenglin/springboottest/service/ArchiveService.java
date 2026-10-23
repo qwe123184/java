@@ -1,11 +1,12 @@
 package com.fenglin.springboottest.service;
 
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.fenglin.springboottest.common.ArchiveSaveRequest;
 import com.fenglin.springboottest.common.ArchiveVO;
 import com.fenglin.springboottest.common.Result;
 
 /**
- * 神域档案业务接口（首页展示 / 检索 / 详情）
+ * 神域档案业务接口（首页展示 / 检索 / 详情 / 后台管理）
  */
 public interface ArchiveService {
 
@@ -19,4 +20,24 @@ public interface ArchiveService {
      * 按 ID 查询单条档案详情；不存在返回失败
      */
     Result<ArchiveVO> detail(Long id);
+
+    /**
+     * 后台档案库：分页检索全部档案（含下架），支持关键词 / 类型 / 状态筛选。
+     */
+    Result<IPage<ArchiveVO>> listAll(String keyword, String type, Integer status, long page, long size);
+
+    /**
+     * 新增档案（后台管理）；成功返回新建档案视图
+     */
+    Result<ArchiveVO> create(ArchiveSaveRequest req);
+
+    /**
+     * 修改档案（后台管理）；id 不存在返回失败
+     */
+    Result<ArchiveVO> update(Long id, ArchiveSaveRequest req);
+
+    /**
+     * 删除档案（后台管理）
+     */
+    Result<Void> remove(Long id);
 }
