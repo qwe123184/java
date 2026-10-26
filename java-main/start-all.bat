@@ -69,7 +69,11 @@ echo [OK] Maven = %MVN_CMD%
 
 REM ---- 2. Repair corrupt .m2 jars ----
 echo [INFO] Repairing corrupt .m2 jars (deleted ones re-download on build) ...
-powershell -NoProfile -ExecutionPolicy Bypass -File "%BASE%\repair-m2.ps1"
+if exist "%BASE%\repair-m2.ps1" (
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%BASE%\repair-m2.ps1"
+) else (
+  echo [INFO] repair-m2.ps1 not found - skipping .m2 repair (non-fatal).
+)
 
 REM ---- 3. MySQL ----
 set "DBPW=123456"
