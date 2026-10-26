@@ -144,6 +144,6 @@ public class ArchiveServiceImpl implements ArchiveService {
             return Result.fail("该档案已消散于迷雾之中。");
         }
         archiveMapper.deleteById(id);
-        return Result.success("档案「" + a.getName() + "」已从神域抹除。");
+        return Result.success("档案「" + a.getName() + "」已从神域抹除。", (Void) null);
     }
 }

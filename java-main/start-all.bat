@@ -15,9 +15,21 @@ set "NO_PROXY=localhost,127.0.0.1"
 set "BASE=%~dp0"
 if "%BASE:~-1%"=="\" set "BASE=%BASE:~0,-1%"
 
+REM ---- use absolute tool paths so a shadowed PATH cannot break the script ----
+set "PING=%SystemRoot%\System32\ping.exe"
+if not exist "%PING%" set "PING=ping"
+set "CURL=%SystemRoot%\System32\curl.exe"
+if not exist "%CURL%" set "CURL=curl"
+
+REM ---- NOTE: keep everything inline ----
+REM  Do NOT re-invoke this script with output redirection: a self-call
+REM  recurses and deadlocks on the same log file. All output stays in this
+REM  window, and the script always ends with "pause" so nothing flashes away.
+
 echo ============================================================
 echo   ZhanShen one-click launcher
-echo   (MySQL -> backend 8081 -> frontend 5173)
+echo   (MySQL -^> backend 8081 -^> frontend 5173)
+echo   Logs: %BASE%\start-all.log  ^| springBootTest\log\  ^| zhanshen\log\
 echo ============================================================
 
 REM ---- 0. JDK ----
@@ -39,27 +51,23 @@ echo [OK] JAVA_HOME = %JAVA_HOME%
 
 REM ---- 1. Maven (search, else download 3.9.9) ----
 set "MVN_CMD="
-where mvn >nul 2>&1 && set "MVN_CMD=mvn"
-if not defined MVN_CMD (
-  for /d %%d in ("%BASE%\tools\maven\apache-maven-*") do if exist "%%d\bin\mvn.cmd" set "MVN_CMD=%%d\bin\mvn.cmd"
-)
-if not defined MVN_CMD (
-  for /d %%d in ("%USERPROFILE%\.m2\wrapper\dists\apache-maven-*") do for /d %%e in ("%%d\*") do for /d %%f in ("%%e\*") do if exist "%%f\bin\mvn.cmd" if not defined MVN_CMD set "MVN_CMD=%%f\bin\mvn.cmd"
-)
-if not defined MVN_CMD (
-  for /d %%d in ("%USERPROFILE%\.m2\maven\apache-maven-*") do if exist "%%d\bin\mvn.cmd" set "MVN_CMD=%%d\bin\mvn.cmd"
-)
+where mvn.cmd >nul 2>&1 && set "MVN_CMD=mvn.cmd"
+if not defined MVN_CMD where mvn >nul 2>&1 && set "MVN_CMD=mvn"
+if not defined MVN_CMD call :FIND_MVN "%BASE%\tools\maven"
+if not defined MVN_CMD call :FIND_MVN "%USERPROFILE%\.m2\wrapper\dists"
+if not defined MVN_CMD call :FIND_MVN "%USERPROFILE%\.m2\maven"
+if not defined MVN_CMD call :FIND_MVN "%USERPROFILE%\scoop\apps\maven"
 if not defined MVN_CMD (
   echo [INFO] Maven not found. Downloading Apache Maven 3.9.9 ...
   set "DL=%BASE%\tools\maven"
   if not exist "!DL!" mkdir "!DL!"
   powershell -NoProfile -Command "Invoke-WebRequest -Uri 'https://maven.aliyun.com/repository/central/org/apache/maven/apache-maven/3.9.9/apache-maven-3.9.9-bin.zip' -OutFile '!DL!\apache-maven-3.9.9-bin.zip'"
   if not exist "!DL!\apache-maven-3.9.9-bin.zip" (
-    echo [ERROR] Maven download failed (no network?). See start-guide.md.
+    echo [ERROR] Maven download failed ^(no network?^). See start-guide.md.
     goto :NEEDHELP
   )
   powershell -NoProfile -Command "Expand-Archive -Path '!DL!\apache-maven-3.9.9-bin.zip' -DestinationPath '!DL!' -Force"
-  for /d %%d in ("!DL!\apache-maven-*") do if exist "%%d\bin\mvn.cmd" set "MVN_CMD=%%d\bin\mvn.cmd"
+  call :FIND_MVN "!DL!"
 )
 if not defined MVN_CMD (
   echo [ERROR] Maven setup failed. See start-guide.md.
@@ -72,26 +80,31 @@ echo [INFO] Repairing corrupt .m2 jars (deleted ones re-download on build) ...
 if exist "%BASE%\repair-m2.ps1" (
   powershell -NoProfile -ExecutionPolicy Bypass -File "%BASE%\repair-m2.ps1"
 ) else (
-  echo [INFO] repair-m2.ps1 not found - skipping .m2 repair (non-fatal).
+  echo [INFO] repair-m2.ps1 not found - skipping .m2 repair ^(non-fatal^).
 )
 
 REM ---- 3. MySQL ----
 set "DBPW=123456"
 set "MYSQLBIN="
-for /d %%d in ("C:\Program Files\MySQL\MySQL Server*\bin") do set "MYSQLBIN=%%d"
+for /d %%d in ("C:\Program Files\MySQL\MySQL Server*") do if exist "%%d\bin\mysqladmin.exe" set "MYSQLBIN=%%d\bin"
+if not defined MYSQLBIN if exist "C:\Program Files (x86)\MySQL\MySQL Server 8.0\bin\mysqladmin.exe" set "MYSQLBIN=C:\Program Files (x86)\MySQL\MySQL Server 8.0\bin"
+if not defined MYSQLBIN (
+  for /f "delims=" %%p in ('where mysqladmin 2^>nul') do set "MYSQLBIN=%%~dpp"
+)
+if defined MYSQLBIN if "!MYSQLBIN:~-1!"=="\" set "MYSQLBIN=!MYSQLBIN:~0,-1!"
 echo [INFO] Checking MySQL at 127.0.0.1:3306 ...
 netstat -ano | findstr /c:":3306 " | findstr /i "LISTENING" >nul
 if errorlevel 1 (
-  echo [INFO] MySQL not listening, trying to start service (needs Administrator) ...
+  echo [INFO] MySQL not listening, trying to start service ^(needs Administrator^) ...
   net start MySQL80 >nul 2>&1
   net start MySQL >nul 2>&1
   net start MySQL57 >nul 2>&1
-  timeout /t 6 >nul
+  %PING% -n 7 127.0.0.1 >nul
 )
 if defined MYSQLBIN (
   "%MYSQLBIN%\mysqladmin" -h 127.0.0.1 -uroot -p%DBPW% ping >nul 2>&1
   if errorlevel 1 (
-    echo [WARN] MySQL still not reachable on 127.0.0.1:3306 (root/%DBPW%).
+    echo [WARN] MySQL still not reachable on 127.0.0.1:3306 ^(root/%DBPW%^).
     echo        Start MySQL manually, then rerun this script. See start-guide.md.
   ) else (
     echo [OK] MySQL is up.
@@ -149,36 +162,32 @@ if not defined MVN_CMD (
   echo [ERROR] Need Maven to build, but mvn not found.
   goto BACKEND_FAIL
 )
-if exist "%JAR%" (echo [INFO] Rebuilding backend (always fresh build) ...) else (echo [INFO] Building backend (first build downloads deps, may take minutes) ...)
+if exist "%JAR%" (echo [INFO] Rebuilding backend ^(always fresh build^) ...) else (echo [INFO] Building backend ^(first build downloads deps, may take minutes^) ...)
 pushd "%BACKEND_HOME%"
 call "%MVN_CMD%" package -DskipTests
 set "MVN_RC=%errorlevel%"
 popd
 if not "%MVN_RC%"=="0" (
-  echo [ERROR] Maven build failed (exit %MVN_RC%). See log above.
+  echo [ERROR] Maven build failed ^(exit %MVN_RC%^). See log above.
   goto BACKEND_FAIL
 )
 echo [OK] Build complete.
 
 :JAR_OK
 echo [OK] jar ready: %JAR%
-echo [INFO] Launching backend ...
-set "BE_CMD=chcp 65001 >nul & java -jar %JAR% --server.port=%PORT% --spring.profiles.active=dev > %LOG% 2>&1"
-pushd "%BACKEND_HOME%"
-start "ZhanShen-Backend-%PORT%" /min cmd /k "%BE_CMD%"
-popd
+echo [INFO] Launching backend in a minimized window ...
+start "ZhanShen-Backend-%PORT%" /min "%BASE%\start-backend.bat"
 
 echo [INFO] Waiting for backend (up to 90s) ...
 set /a "TRIES=0"
 :BE_WAIT
-timeout /t 3 /nobreak >nul
-curl -s -o nul -m 3 http://localhost:%PORT%/actuator/health
+%PING% -n 4 127.0.0.1 >nul
+%CURL% -s -o NUL -m 3 http://localhost:%PORT%/actuator/health
 if not errorlevel 1 goto BE_READY
 set /a TRIES+=1
 if !TRIES! GEQ 30 (
-  echo [WARN] Backend timeout. Log: %LOG%
-  echo ---------- log tail ----------
-  powershell -NoProfile -Command "Get-Content -Encoding UTF8 '%LOG%' -Tail 30"
+  echo [WARN] Backend did not answer in time.
+  echo        Restore the minimized window "ZhanShen-Backend-%PORT%" to read the error.
   goto BACKEND_FAIL
 )
 goto BE_WAIT
@@ -189,13 +198,13 @@ echo ============================================================
 echo   [OK] Backend up: http://localhost:%PORT%/
 echo    - Swagger : http://localhost:%PORT%/swagger-ui.html
 echo    - Health  : http://localhost:%PORT%/actuator/health
-echo    - Log     : %LOG%
+echo    - Console : minimized window "ZhanShen-Backend-%PORT%"
 echo ============================================================
 goto BACKEND_DONE
 
 :BACKEND_FAIL
 echo.
-echo [FAIL] Backend not started. Follow the hints above.
+echo [FAIL] Backend not started. See the minimized backend window.
 goto BACKEND_DONE
 
 :BACKEND_DONE
@@ -208,7 +217,7 @@ set "BACKEND_PORT=8081"
 set "APP_HOME="
 if exist "%BASE%\zhanshen\package.json" set "APP_HOME=%BASE%\zhanshen"
 if not defined APP_HOME (
-  echo [ERROR] Frontend dir (zhanshen) not found.
+  echo [ERROR] Frontend dir ^(zhanshen^) not found.
   goto FRONTEND_DONE
 )
 echo [OK] Frontend dir: %APP_HOME%
@@ -240,7 +249,7 @@ if errorlevel 1 (
 
 netstat -ano | findstr /c:":%BACKEND_PORT% " | findstr /i "LISTENING" >nul
 if errorlevel 1 (
-  echo [WARN] Backend (port %BACKEND_PORT%) not running - /api calls will fail.
+  echo [WARN] Backend ^(port %BACKEND_PORT%^) not running - /api calls will fail.
 ) else (
   echo [OK] Backend %BACKEND_PORT% is listening
 )
@@ -258,30 +267,26 @@ call npm install
 set "NPM_RC=%errorlevel%"
 popd
 if not "%NPM_RC%"=="0" (
-  echo [ERROR] npm install failed (exit %NPM_RC%). Check network/npm registry.
+  echo [ERROR] npm install failed ^(exit %NPM_RC%^). Check network/npm registry.
   goto FRONTEND_DONE
 )
 echo [OK] Dependencies installed.
 
 :FE_DEPS_OK
 echo [OK] Dependencies ready.
-echo [INFO] Launching Vite dev server ...
-set "FE_CMD=chcp 65001 >nul & npm run dev > %LOG% 2>&1"
-pushd "%APP_HOME%"
-start "ZhanShen-Frontend-%PORT%" /min cmd /k "%FE_CMD%"
-popd
+echo [INFO] Launching Vite dev server in a minimized window ...
+start "ZhanShen-Frontend-%PORT%" /min "%BASE%\start-frontend.bat"
 
 echo [INFO] Waiting for frontend (up to 60s) ...
 set /a "TRIES=0"
 :FE_WAIT
-timeout /t 2 /nobreak >nul
-curl -s -o nul -m 3 http://localhost:%PORT%/
+%PING% -n 3 127.0.0.1 >nul
+%CURL% -s -o NUL -m 3 http://localhost:%PORT%/
 if not errorlevel 1 goto FE_READY
 set /a TRIES+=1
 if !TRIES! GEQ 30 (
-  echo [WARN] Frontend timeout. Log: %LOG%
-  echo ---------- log tail ----------
-  powershell -NoProfile -Command "Get-Content -Encoding UTF8 '%LOG%' -Tail 25"
+  echo [WARN] Frontend did not answer in time.
+  echo        Restore the minimized window "ZhanShen-Frontend-%PORT%" to read the error.
   goto FRONTEND_DONE
 )
 goto FE_WAIT
@@ -290,8 +295,8 @@ goto FE_WAIT
 echo.
 echo ============================================================
 echo   [OK] Frontend up: http://localhost:%PORT%/
-echo    - API proxy: /api -> http://localhost:%BACKEND_PORT%
-echo    - Log     : %LOG%
+echo    - API proxy : /api -^> http://localhost:%BACKEND_PORT%
+echo    - Console   : minimized window "ZhanShen-Frontend-%PORT%"
 echo ============================================================
 
 :FE_OPEN
@@ -301,6 +306,13 @@ if exist "%CHROME_EXE%" (start "" "%CHROME_EXE%" "http://localhost:%PORT%/") els
 goto FRONTEND_DONE
 
 :FRONTEND_DONE
+goto :EOF
+
+REM ==================== helpers ====================
+REM Find mvn.cmd under a directory tree (robust replacement for nested FOR /D loops)
+:FIND_MVN
+if not exist "%~1" goto :EOF
+for /f "delims=" %%p in ('dir /b /s "%~1\mvn.cmd" 2^>nul') do if not defined MVN_CMD set "MVN_CMD=%%p"
 goto :EOF
 
 REM ==================== status ====================
@@ -316,11 +328,12 @@ netstat -ano | findstr /c:":%BE_PORT% " | findstr /i "LISTENING" >nul
 if errorlevel 1 (echo   listening: NO) else (echo   listening: YES  http://localhost:%BE_PORT%/  Swagger /swagger-ui.html)
 echo ---[ MySQL    port %DB_PORT% ]---
 netstat -ano | findstr /c:":%DB_PORT% " | findstr /i "LISTENING" >nul
-if errorlevel 1 (echo   listening: NO  -> backend will fail to connect) else (echo   listening: YES)
+if errorlevel 1 (echo   listening: NO  -^> backend will fail to connect) else (echo   listening: YES)
 echo.
 goto :EOF
 
 :NEEDHELP
 echo.
 echo Setup failed. Read start-guide.md for step-by-step instructions.
-pause
+if /i not "%~1"=="/nopause" pause
+exit /b 1

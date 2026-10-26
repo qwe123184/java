@@ -102,11 +102,15 @@
 
 	<build>
 		<plugins>
-			<plugin>
-				<groupId>org.springframework.boot</groupId>
-				<artifactId>spring-boot-maven-plugin</artifactId>
-
-			</plugin>
+		<plugin>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-maven-plugin</artifactId>
+			<configuration>
+				<!-- 强制应用端口为 8081，与前端 vite 代理 target 对齐；
+				     优先级高于 profile 配置，可规避被解析成随机端口的问题 -->
+				<jvmArguments>-Dserver.port=8081</jvmArguments>
+			</configuration>
+		</plugin>
 		</plugins>
 	</build>
 
