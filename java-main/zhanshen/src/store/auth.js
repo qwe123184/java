@@ -44,7 +44,8 @@ export function clearSession() {
 export function useAuth() {
   const isAuthed = computed(() => !!session.accessToken)
   const user = computed(() => session.user)
-  const isAdmin = computed(() => session.user?.role === 'ADMIN')
+  // 权限：permission === 0 表示管理员（执政官，可进入后台管理系统）；1 为默认普通用户
+  const isAdmin = computed(() => session.user?.permission === 0)
 
   // 登录/注册成功后写入会话
   function setSession(user, accessToken, refreshToken) {

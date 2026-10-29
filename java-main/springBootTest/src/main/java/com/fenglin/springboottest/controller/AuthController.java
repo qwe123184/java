@@ -1,7 +1,9 @@
 package com.fenglin.springboottest.controller;
 
+import com.fenglin.springboottest.common.ChangePasswordRequest;
 import com.fenglin.springboottest.common.LoginRequest;
 import com.fenglin.springboottest.common.LoginVO;
+import com.fenglin.springboottest.common.ProfileUpdateRequest;
 import com.fenglin.springboottest.common.RefreshRequest;
 import com.fenglin.springboottest.common.RegisterRequest;
 import com.fenglin.springboottest.common.Result;
@@ -53,5 +55,23 @@ public class AuthController {
     public Result<UserVO> me(@RequestAttribute Long userId) {
         UserVO vo = userService.getUserById(userId);
         return vo == null ? Result.fail("守夜人信息已消散。") : Result.success(vo);
+    }
+
+    /**
+     * 修改当前守夜人个人资料（昵称/头像/手机/简介/邮箱/境界）
+     */
+    @PutMapping("/profile")
+    public Result<UserVO> updateProfile(@Valid @RequestBody ProfileUpdateRequest req,
+                                        @RequestAttribute Long userId) {
+        return userService.updateProfile(userId, req);
+    }
+
+    /**
+     * 修改当前守夜人密码（明文比对原密码，明文写入新密码）
+     */
+    @PostMapping("/password")
+    public Result<Void> changePassword(@Valid @RequestBody ChangePasswordRequest req,
+                                       @RequestAttribute Long userId) {
+        return userService.changePassword(userId, req);
     }
 }

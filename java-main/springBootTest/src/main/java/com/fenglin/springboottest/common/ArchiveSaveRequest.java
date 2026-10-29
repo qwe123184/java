@@ -29,6 +29,14 @@ public class ArchiveSaveRequest implements Serializable {
     @Size(max = 2000, message = "描述长度不可超过 2000 字。")
     private String description;
 
+    /** 封面图 URL（可选） */
+    @Size(max = 255, message = "封面地址过长。")
+    private String cover;
+
+    /** 标签（逗号分隔，可选） */
+    @Size(max = 255, message = "标签过长。")
+    private String tags;
+
     /** 展示状态：0 下架 / 1 展示（不传默认 1） */
     private Integer status;
 
@@ -65,6 +73,22 @@ public class ArchiveSaveRequest implements Serializable {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getCover() {
+        return cover;
+    }
+
+    public void setCover(String cover) {
+        this.cover = cover;
+    }
+
+    public String getTags() {
+        return tags;
+    }
+
+    public void setTags(String tags) {
+        this.tags = tags;
     }
 
     public Integer getStatus() {

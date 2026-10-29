@@ -33,6 +33,12 @@ public class Archive implements Serializable {
     /** 描述 */
     private String description;
 
+    /** 封面图 URL（可空） */
+    private String cover;
+
+    /** 标签（逗号分隔，可空） */
+    private String tags;
+
     /** 展示状态：0 下架 / 1 展示（首页只展示=1 的） */
     private Integer status;
 
@@ -88,6 +94,22 @@ public class Archive implements Serializable {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getCover() {
+        return cover;
+    }
+
+    public void setCover(String cover) {
+        this.cover = cover;
+    }
+
+    public String getTags() {
+        return tags;
+    }
+
+    public void setTags(String tags) {
+        this.tags = tags;
     }
 
     public Integer getStatus() {

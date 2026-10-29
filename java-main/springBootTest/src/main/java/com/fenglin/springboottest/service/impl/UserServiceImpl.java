@@ -1,8 +1,12 @@
 package com.fenglin.springboottest.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fenglin.springboottest.common.ChangePasswordRequest;
 import com.fenglin.springboottest.common.LoginRequest;
 import com.fenglin.springboottest.common.LoginVO;
+import com.fenglin.springboottest.common.ProfileUpdateRequest;
 import com.fenglin.springboottest.common.RegisterRequest;
 import com.fenglin.springboottest.common.Result;
 import com.fenglin.springboottest.common.UserVO;
@@ -11,7 +15,6 @@ import com.fenglin.springboottest.entity.User;
 import com.fenglin.springboottest.mapper.UserMapper;
 import com.fenglin.springboottest.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -36,7 +39,9 @@ public class UserServiceImpl implements UserService {
     @Autowired
     private JwtUtil jwtUtil;
 
-    private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+    /** 权限常量：0 管理员（执政官）/ 1 默认（普通守夜人） */
+    private static final int PERMISSION_ADMIN = 0;
+    private static final int PERMISSION_DEFAULT = 1;
 
     @Override
     public Result<LoginVO> register(RegisterRequest req) {
@@ -65,9 +70,13 @@ public class UserServiceImpl implements UserService {
 
         User user = new User();
         user.setUsername(username);
-        user.setPassword(encoder.encode(password));
+        // 密码以明文存储（按需求不加密）
+        user.setPassword(password);
         user.setEmail(StringUtils.hasText(req.getEmail()) ? req.getEmail().trim() : null);
         user.setRealm(realm);
+        // 注册用户默认权限（普通守夜人，permission=1）
+        user.setPermission(PERMISSION_DEFAULT);
+        user.setRole("USER");
         user.setStatus(0);
         user.setCreateTime(LocalDateTime.now());
 
@@ -98,7 +107,8 @@ public class UserServiceImpl implements UserService {
         if (user.getStatus() != null && user.getStatus() == 1) {
             return Result.fail("该守夜人已被诸神封印，禁止进入神域。");
         }
-        if (!encoder.matches(password, user.getPassword())) {
+        // 明文比对（按需求密码不加密）
+        if (!password.equals(user.getPassword())) {
             return Result.fail("禁墟密钥有误，横刀之誓不可违。");
         }
 
@@ -127,10 +137,12 @@ public class UserServiceImpl implements UserService {
         if (user.getStatus() != null && user.getStatus() == 1) {
             return Result.fail("该执政官已被诸神封印，禁止进入后台。");
         }
-        if (!"ADMIN".equals(user.getRole())) {
+        // 仅权限为管理员（permission=0）的账号可进入后台管理系统
+        if (user.getPermission() == null || user.getPermission() != PERMISSION_ADMIN) {
             return Result.fail("你并非神域执政官，无权进入后台管理系统。");
         }
-        if (!encoder.matches(password, user.getPassword())) {
+        // 明文比对（按需求密码不加密）
+        if (!password.equals(user.getPassword())) {
             return Result.fail("管理密钥有误，禁入后台。");
         }
 
@@ -149,7 +161,7 @@ public class UserServiceImpl implements UserService {
             return false;
         }
         User user = userMapper.selectById(userId);
-        return user != null && "ADMIN".equals(user.getRole());
+        return user != null && user.getPermission() != null && user.getPermission() == PERMISSION_ADMIN;
     }
 
     @Override
@@ -184,5 +196,110 @@ public class UserServiceImpl implements UserService {
         }
         User user = userMapper.selectById(id);
         return user == null ? null : UserVO.fromEntity(user);
+    }
+
+    @Override
+    public Result<UserVO> updateProfile(Long userId, ProfileUpdateRequest req) {
+        if (userId == null || req == null) {
+            return Result.fail("未指定守夜人或资料为空。");
+        }
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            return Result.fail("守夜人信息已消散。");
+        }
+        // 仅允许修改自身展示字段（账号/密码/权限/状态不可经此接口变更）
+        if (req.getNickname() != null) user.setNickname(req.getNickname().trim());
+        if (req.getAvatar() != null) user.setAvatar(req.getAvatar().trim());
+        if (req.getPhone() != null) user.setPhone(req.getPhone().trim());
+        if (req.getBio() != null) user.setBio(req.getBio().trim());
+        if (req.getEmail() != null) user.setEmail(req.getEmail().trim());
+        if (req.getRealm() != null) {
+            String realm = req.getRealm().trim();
+            user.setRealm(!realm.isEmpty() && REALMS.contains(realm) ? realm : user.getRealm());
+        }
+        userMapper.updateById(user);
+        return Result.success("守夜人资料已更新。", UserVO.fromEntity(user));
+    }
+
+    @Override
+    public Result<Void> changePassword(Long userId, ChangePasswordRequest req) {
+        if (userId == null || req == null) {
+            return Result.fail("未指定守夜人或请求为空。");
+        }
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            return Result.fail("守夜人信息已消散。");
+        }
+        // 明文比对原密码（按需求密码不加密）
+        if (!req.getOldPassword().equals(user.getPassword())) {
+            return Result.fail("原禁墟密钥有误，横刀之誓不可违。");
+        }
+        // 明文写入新密码
+        user.setPassword(req.getNewPassword());
+        userMapper.updateById(user);
+        return Result.success("禁墟密钥已重塑，神域重归安宁。", (Void) null);
+    }
+
+    @Override
+    public Result<IPage<UserVO>> listUsers(String keyword, Integer permission, Integer status, long page, long size) {
+        LambdaQueryWrapper<User> qw = new LambdaQueryWrapper<>();
+        if (permission != null) {
+            qw.eq(User::getPermission, permission);
+        }
+        if (status != null) {
+            qw.eq(User::getStatus, status);
+        }
+        if (StringUtils.hasText(keyword)) {
+            String k = keyword.trim();
+            qw.and(w -> w.like(User::getUsername, k)
+                    .or().like(User::getNickname, k)
+                    .or().like(User::getEmail, k));
+        }
+        qw.orderByDesc(User::getId);
+        Page<User> pg = new Page<>(page, size);
+        IPage<User> res = userMapper.selectPage(pg, qw);
+        IPage<UserVO> voPage = res.convert(UserVO::fromEntity);
+        return Result.success(voPage);
+    }
+
+    @Override
+    public Result<UserVO> setUserStatus(Long id, Integer status) {
+        if (id == null || status == null) {
+            return Result.fail("未指定账号或状态。");
+        }
+        User user = userMapper.selectById(id);
+        if (user == null) {
+            return Result.fail("该守夜人信息已消散。");
+        }
+        user.setStatus(status == 1 ? 1 : 0);
+        userMapper.updateById(user);
+        return Result.success(status == 1 ? "该守夜人已被诸神封印。" : "该守夜人已重获自由。", UserVO.fromEntity(user));
+    }
+
+    @Override
+    public Result<UserVO> setUserPermission(Long id, Integer permission) {
+        if (id == null || permission == null) {
+            return Result.fail("未指定账号或权限。");
+        }
+        User user = userMapper.selectById(id);
+        if (user == null) {
+            return Result.fail("该守夜人信息已消散。");
+        }
+        user.setPermission(permission == PERMISSION_ADMIN ? PERMISSION_ADMIN : PERMISSION_DEFAULT);
+        userMapper.updateById(user);
+        return Result.success(permission == PERMISSION_ADMIN ? "已擢升为神域执政官。" : "已降为普通守夜人。", UserVO.fromEntity(user));
+    }
+
+    @Override
+    public Result<Void> deleteUser(Long id) {
+        if (id == null) {
+            return Result.fail("未指定账号。");
+        }
+        User user = userMapper.selectById(id);
+        if (user == null) {
+            return Result.fail("该守夜人信息已消散。");
+        }
+        userMapper.deleteById(id);
+        return Result.success("守夜人「" + user.getUsername() + "」已从神域抹除。", (Void) null);
     }
 }

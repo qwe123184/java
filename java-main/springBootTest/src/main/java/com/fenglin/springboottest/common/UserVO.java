@@ -15,7 +15,12 @@ public class UserVO implements Serializable {
     private String email;
     private String realm;
     private String role;
+    private Integer permission;
     private Integer status;
+    private String nickname;
+    private String avatar;
+    private String phone;
+    private String bio;
     private LocalDateTime createTime;
 
     public static UserVO fromEntity(com.fenglin.springboottest.entity.User u) {
@@ -28,7 +33,12 @@ public class UserVO implements Serializable {
         vo.setEmail(u.getEmail());
         vo.setRealm(u.getRealm());
         vo.setRole(u.getRole());
+        vo.setPermission(u.getPermission());
         vo.setStatus(u.getStatus());
+        vo.setNickname(u.getNickname());
+        vo.setAvatar(u.getAvatar());
+        vo.setPhone(u.getPhone());
+        vo.setBio(u.getBio());
         vo.setCreateTime(u.getCreateTime());
         return vo;
     }
@@ -73,12 +83,52 @@ public class UserVO implements Serializable {
         this.role = role;
     }
 
+    public Integer getPermission() {
+        return permission;
+    }
+
+    public void setPermission(Integer permission) {
+        this.permission = permission;
+    }
+
     public Integer getStatus() {
         return status;
     }
 
     public void setStatus(Integer status) {
         this.status = status;
+    }
+
+    public String getNickname() {
+        return nickname;
+    }
+
+    public void setNickname(String nickname) {
+        this.nickname = nickname;
+    }
+
+    public String getAvatar() {
+        return avatar;
+    }
+
+    public void setAvatar(String avatar) {
+        this.avatar = avatar;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public String getBio() {
+        return bio;
+    }
+
+    public void setBio(String bio) {
+        this.bio = bio;
     }
 
     public LocalDateTime getCreateTime() {

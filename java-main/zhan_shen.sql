@@ -62,6 +62,7 @@ CREATE TABLE `t_user`  (
   `email` varchar(120) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NULL DEFAULT NULL,
   `realm` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT '池境',
   `role` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL DEFAULT 'USER' COMMENT '角色：USER/ADMIN',
+  `permission` tinyint NOT NULL DEFAULT 1 COMMENT '权限：0 管理员(执政官) / 1 默认(普通守夜人)',
   `status` tinyint NOT NULL DEFAULT 0,
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -72,8 +73,8 @@ CREATE TABLE `t_user`  (
 -- ----------------------------
 -- Records of t_user
 -- ----------------------------
-INSERT INTO `t_user` VALUES (1, 'admin', '$2a$10$dJqupIWiAjsm8YCYSkriye5jN.bOgLaIaZhE6rGOgZREfYLdYOIHq', NULL, '海境', 'ADMIN', 0, '2026-10-26 08:59:33', '2026-10-26 08:59:32');
-INSERT INTO `t_user` VALUES (2, 'ff', '$2a$10$h3R6Mxnz4f2iT9XtImq.QuE0HtTPI6q1P3ziKcfT9qYhYygGi4aZm', NULL, '池境', 'USER', 0, '2026-10-26 08:59:35', '2026-10-26 08:59:34');
-INSERT INTO `t_user` VALUES (3, 'normaluser', '$2a$10$jG.4kNVniVWUhQUz5WHln.fnVIHg8Hol8bVs5p1g1ijO2O4onwXne', NULL, '盏境', 'USER', 0, '2026-10-26 09:00:02', '2026-10-26 09:00:01');
+INSERT INTO `t_user` VALUES (1, 'admin', 'admin123', NULL, '海境', 'ADMIN', 0, 0, '2026-10-26 08:59:33', '2026-10-26 08:59:32');
+INSERT INTO `t_user` VALUES (2, 'ff', '123456', NULL, '池境', 'USER', 1, 0, '2026-10-26 08:59:35', '2026-10-26 08:59:34');
+INSERT INTO `t_user` VALUES (3, 'normaluser', '123456', NULL, '盏境', 'USER', 1, 0, '2026-10-26 09:00:02', '2026-10-26 09:00:01');
 
 SET FOREIGN_KEY_CHECKS = 1;

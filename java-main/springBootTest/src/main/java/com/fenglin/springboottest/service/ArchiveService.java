@@ -40,4 +40,9 @@ public interface ArchiveService {
      * 删除档案（后台管理）
      */
     Result<Void> remove(Long id);
+
+    /**
+     * 批量上下架（后台管理）：按 id 列表统一设置状态（0 下架 / 1 上架）
+     */
+    Result<Void> batchStatus(java.util.List<Long> ids, Integer status);
 }

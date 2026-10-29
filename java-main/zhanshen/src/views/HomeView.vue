@@ -6,7 +6,7 @@ import { me } from '../api/auth'
 import { archiveList, archiveDetail } from '../api/archive'
 
 const router = useRouter()
-const { user, setSession, logout } = useAuth()
+const { user, isAdmin, setSession, logout } = useAuth()
 
 function onLogout() {
   logout()
@@ -16,6 +16,11 @@ function onLogout() {
 // 进入后台管理系统（未登录管理员会被守卫引导至后台登录页）
 function goAdmin() {
   router.push('/admin')
+}
+
+// 进入个人中心（资料 / 修改密码）
+function goProfile() {
+  router.push('/profile')
 }
 
 // 进入神域时以访问令牌拉取最新守夜人信息，确保会话有效（保留已有后端接口调用）
@@ -196,13 +201,14 @@ function closeDetail() {
         </li>
       </ul>
 
-      <button class="admin-entry" @click="goAdmin" title="进入后台管理系统">
+      <button v-if="isAdmin" class="admin-entry" @click="goAdmin" title="进入后台管理系统">
         <span class="gear">⚙</span> 后台管理
       </button>
 
       <div class="user">
         <span class="avatar">{{ (user?.username || '无')[0] }}</span>
         <span class="uname">守夜人「<b>{{ user?.username || '无名' }}</b>」</span>
+        <button class="profile-entry" @click="goProfile" title="个人中心">个人中心</button>
         <button class="logout" @click="onLogout">退出神域</button>
       </div>
     </nav>
@@ -446,6 +452,12 @@ function closeDetail() {
 }
 @keyframes ringSpin { to { transform: rotate(360deg); } }
 .user b { color: var(--gold); }
+.profile-entry {
+  margin-left: 4px; border: 1px solid rgba(120,150,255,.3); background: rgba(46,230,255,.06);
+  color: var(--cyan); padding: 8px 14px; border-radius: 9px; cursor: pointer;
+  font-family: inherit; font-size: 13px; transition: .2s;
+}
+.profile-entry:hover { border-color: var(--cyan); color: #fff; box-shadow: 0 0 16px rgba(46,230,255,.3); }
 .logout {
   margin-left: 4px; border: 1px solid var(--glass-bd); background: rgba(255,255,255,.03);
   color: var(--ink); padding: 8px 14px; border-radius: 9px; cursor: pointer;

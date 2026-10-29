@@ -18,6 +18,10 @@ public class ArchiveVO implements Serializable {
     private String realm;
     /** 前端卡片使用 it.desc 读取描述 */
     private String desc;
+    /** 封面图 URL（可空） */
+    private String cover;
+    /** 标签（逗号分隔，可空） */
+    private String tags;
     /** 排序值（越大越靠前），前端用于「排行」页战力条 */
     private Integer sort;
     /** 展示状态：0 下架 / 1 展示 */
@@ -35,6 +39,8 @@ public class ArchiveVO implements Serializable {
         vo.setType(a.getType());
         vo.setRealm(a.getRealm());
         vo.setDesc(a.getDescription());
+        vo.setCover(a.getCover());
+        vo.setTags(a.getTags());
         vo.setSort(a.getSort());
         vo.setStatus(a.getStatus());
         vo.setCreateTime(a.getCreateTime());
@@ -79,6 +85,22 @@ public class ArchiveVO implements Serializable {
 
     public void setDesc(String desc) {
         this.desc = desc;
+    }
+
+    public String getCover() {
+        return cover;
+    }
+
+    public void setCover(String cover) {
+        this.cover = cover;
+    }
+
+    public String getTags() {
+        return tags;
+    }
+
+    public void setTags(String tags) {
+        this.tags = tags;
     }
 
     public Integer getSort() {

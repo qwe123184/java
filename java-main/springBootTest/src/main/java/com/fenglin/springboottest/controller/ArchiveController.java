@@ -3,6 +3,7 @@ package com.fenglin.springboottest.controller;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.fenglin.springboottest.common.ArchiveSaveRequest;
 import com.fenglin.springboottest.common.ArchiveVO;
+import com.fenglin.springboottest.common.BatchStatusRequest;
 import com.fenglin.springboottest.common.Result;
 import com.fenglin.springboottest.service.ArchiveService;
 import com.fenglin.springboottest.service.UserService;
@@ -110,5 +111,18 @@ public class ArchiveController {
             return Result.fail("非执政官无权删除档案。");
         }
         return archiveService.remove(id);
+    }
+
+    /**
+     * 批量上下架（后台管理），仅 ADMIN 可操作；body: { ids: [...], status: 0/1 }
+     */
+    @PutMapping("/status/batch")
+    public Result<Void> batchStatus(
+            @RequestBody BatchStatusRequest req,
+            @RequestAttribute Long userId) {
+        if (!userService.isAdmin(userId)) {
+            return Result.fail("非执政官无权操作。");
+        }
+        return archiveService.batchStatus(req.getIds(), req.getStatus());
     }
 }

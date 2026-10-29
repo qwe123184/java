@@ -2,8 +2,8 @@
 import { onMounted, ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth } from '../store/auth'
-import { adminProfile } from '../api/auth'
-import { archiveAdminList, archiveCreate, archiveUpdate, archiveDelete } from '../api/archive'
+import { adminProfile, adminUserList, adminUserSetStatus, adminUserSetPermission, adminUserDelete } from '../api/auth'
+import { archiveAdminList, archiveCreate, archiveUpdate, archiveDelete, archiveBatchStatus } from '../api/archive'
 
 const router = useRouter()
 const { user, logout } = useAuth()
@@ -33,6 +33,145 @@ function onLogout() {
 function goHome() {
   router.push('/home')
 }
+
+// ===== 模块切换 =====
+const tab = ref('archive')   // 'archive' 档案管理 / 'users' 用户管理
+
+// ===== 用户管理 =====
+const uKeyword = ref('')
+const uPermission = ref('')   // '' 全部 / 0 管理员 / 1 默认
+const uStatus = ref('')       // '' 全部 / 0 正常 / 1 封禁
+const uPage = ref(1)
+const uSize = 10
+const users = ref([])
+const uTotal = ref(0)
+const uLoading = ref(false)
+const confirmUserId = ref(null)
+
+const uTotalPages = computed(() => Math.max(1, Math.ceil(uTotal.value / uSize)))
+
+async function fetchUsers() {
+  uLoading.value = true
+  try {
+    const { data } = await adminUserList({
+      keyword: uKeyword.value.trim() || undefined,
+      permission: uPermission.value === '' ? undefined : Number(uPermission.value),
+      status: uStatus.value === '' ? undefined : Number(uStatus.value),
+      page: uPage.value,
+      size: uSize
+    })
+    if (data?.code === 0 && data?.data) {
+      users.value = data.data.records || []
+      uTotal.value = data.data.total || 0
+    } else {
+      users.value = []
+      uTotal.value = 0
+    }
+  } catch {
+    users.value = []
+    uTotal.value = 0
+  } finally {
+    uLoading.value = false
+  }
+}
+
+let uSearchTimer
+watch([uKeyword, uPermission, uStatus], () => {
+  clearTimeout(uSearchTimer)
+  uPage.value = 1
+  uSearchTimer = setTimeout(fetchUsers, 300)
+})
+watch(uPage, fetchUsers)
+
+function permText(p) {
+  return p === 0 ? '管理员' : '默认'
+}
+function statusTextU(s) {
+  return s === 1 ? '封禁' : '正常'
+}
+
+async function toggleUserStatus(it) {
+  const next = it.status === 1 ? 0 : 1
+  try {
+    const { data } = await adminUserSetStatus(it.id, next)
+    if (data?.code === 0) {
+      Object.assign(it, data.data || { status: next })
+      showToast(next === 1 ? `已封禁「${it.username}」。` : `已解封「${it.username}」。`, 'ok')
+    } else {
+      showToast(data?.msg || '操作失败。', 'err')
+    }
+  } catch (e) {
+    showToast(e.response?.data?.msg || '神域动荡，操作失败。', 'err')
+  }
+}
+
+async function toggleUserPerm(it) {
+  // 当前管理员(0) -> 降为默认(1)；默认(1) -> 提升为管理员(0)
+  const next = it.permission === 0 ? 1 : 0
+  try {
+    const { data } = await adminUserSetPermission(it.id, next)
+    if (data?.code === 0) {
+      Object.assign(it, data.data || { permission: next })
+      showToast(next === 0 ? `已提升「${it.username}」为执政官。` : `已收回「${it.username}」执政官权限。`, 'ok')
+    } else {
+      showToast(data?.msg || '操作失败。', 'err')
+    }
+  } catch (e) {
+    showToast(e.response?.data?.msg || '神域动荡，操作失败。', 'err')
+  }
+}
+
+function askDeleteUser(it) {
+  confirmUserId.value = it.id
+}
+function cancelDeleteUser() {
+  confirmUserId.value = null
+}
+async function doDeleteUser(it) {
+  confirmUserId.value = null
+  try {
+    const { data } = await adminUserDelete(it.id)
+    if (data?.code === 0) {
+      showToast(`守夜人「${it.username}」已从名册抹去。`, 'ok')
+      fetchUsers()
+    } else {
+      showToast(data?.msg || '删除失败。', 'err')
+    }
+  } catch (e) {
+    showToast(e.response?.data?.msg || '神域动荡，删除失败。', 'err')
+  }
+}
+
+// ===== 档案批量上下架 =====
+const batchIds = ref([])
+const batchStatus = ref(1)
+async function doBatchStatus() {
+  if (!batchIds.value.length) return showToast('请先勾选档案。', 'err')
+  try {
+    const { data } = await archiveBatchStatus([...batchIds.value], batchStatus.value)
+    if (data?.code === 0) {
+      showToast(data.msg || `已批量${batchStatus.value === 1 ? '上架' : '下架'} ${batchIds.value.length} 条档案。`, 'ok')
+      batchIds.value = []
+      fetchList()
+    } else {
+      showToast(data?.msg || '批量操作失败。', 'err')
+    }
+  } catch (e) {
+    showToast(e.response?.data?.msg || '神域动荡，批量操作失败。', 'err')
+  }
+}
+
+onMounted(() => {
+  loadProfile()
+  fetchList()
+})
+
+// 切入用户管理标签时拉取用户列表（首次）
+watch(tab, (t) => {
+  if (t === 'users' && !users.value.length && !uLoading.value) {
+    fetchUsers()
+  }
+})
 
 // ===== 档案列表 =====
 const query = ref('')
@@ -95,7 +234,7 @@ const editing = ref(false)      // true=修改，false=新增
 const modal = ref(null)         // null 关闭；否则为表单对象
 const saving = ref(false)
 
-const emptyForm = { name: '', type: '禁墟', realm: '', description: '', status: 1, sort: 0 }
+const emptyForm = { name: '', type: '禁墟', realm: '', description: '', cover: '', tags: '', status: 1, sort: 0 }
 const form = ref({ ...emptyForm })
 
 function openCreate() {
@@ -111,6 +250,8 @@ function openEdit(it) {
     type: it.type || '禁墟',
     realm: it.realm || '',
     description: it.desc || '',
+    cover: it.cover || '',
+    tags: typeof it.tags === 'string' ? it.tags : (Array.isArray(it.tags) ? it.tags.join(',') : ''),
     status: it.status ?? 1,
     sort: it.sort ?? 0
   }
@@ -133,6 +274,8 @@ async function save() {
     type: f.type,
     realm: f.realm.trim() || undefined,
     description: f.description.trim(),
+    cover: f.cover.trim() || undefined,
+    tags: f.tags.trim() || undefined,
     status: Number(f.status),
     sort: Number(f.sort) || 0
   }
@@ -189,7 +332,7 @@ onMounted(() => {
     <nav class="navbar">
       <div class="brand">
         <span class="sigil">⚙</span>
-        <span class="brand-txt">神域后台 · 档案管理</span>
+        <span class="brand-txt">神域后台 · 执政官</span>
       </div>
 
       <div class="user">
@@ -200,8 +343,14 @@ onMounted(() => {
       </div>
     </nav>
 
-    <!-- 工具栏 -->
-    <section class="toolbar">
+    <!-- 模块切换 -->
+    <div class="tabs">
+      <button :class="{ on: tab === 'archive' }" @click="tab = 'archive'">📜 档案管理</button>
+      <button :class="{ on: tab === 'users' }" @click="tab = 'users'">👥 用户管理</button>
+    </div>
+
+    <!-- 档案工具栏 -->
+    <section class="toolbar" v-if="tab === 'archive'">
       <div class="searchbar">
         <svg class="s-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
@@ -223,11 +372,22 @@ onMounted(() => {
       <button class="create" @click="openCreate">＋ 新增档案</button>
     </section>
 
+    <!-- 批量上下架 -->
+    <section class="batchbar" v-if="tab === 'archive'">
+      <span class="dim">已选 {{ batchIds.length }} 条</span>
+      <select v-model="batchStatus" class="sel">
+        <option :value="1">上架</option>
+        <option :value="0">下架</option>
+      </select>
+      <button class="ghost-btn" @click="doBatchStatus">批量应用</button>
+    </section>
+
     <!-- 档案表格 -->
-    <section class="table-wrap">
+    <section class="table-wrap" v-if="tab === 'archive'">
       <table class="tbl">
         <thead>
           <tr>
+            <th style="width:46px">选</th>
             <th style="width:52px">ID</th>
             <th>名称</th>
             <th style="width:86px">类型</th>
@@ -241,12 +401,15 @@ onMounted(() => {
         </thead>
         <tbody>
           <tr v-if="loading">
-            <td colspan="9" class="center dim">检索中…</td>
+            <td colspan="10" class="center dim">检索中…</td>
           </tr>
           <tr v-else-if="!list.length">
-            <td colspan="9" class="center dim">神域档案空空如也，点击右上角「新增档案」录入第一条记录。</td>
+            <td colspan="10" class="center dim">神域档案空空如也，点击右上角「新增档案」录入第一条记录。</td>
           </tr>
           <tr v-else v-for="it in list" :key="it.id">
+            <td>
+              <input type="checkbox" class="cbx" :value="it.id" v-model="batchIds" />
+            </td>
             <td class="dim">#{{ it.id }}</td>
             <td class="strong">
               <span class="glyph" :data-type="it.type">{{ typeGlyph[it.type] || '◈' }}</span>
@@ -280,6 +443,81 @@ onMounted(() => {
       </div>
     </section>
 
+    <!-- 用户管理 -->
+    <section class="usertool" v-if="tab === 'users'">
+      <div class="searchbar">
+        <svg class="s-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
+        </svg>
+        <input v-model="uKeyword" type="text" placeholder="按账号 / 昵称 / 邮箱检索…" />
+      </div>
+      <select v-model="uPermission" class="sel">
+        <option value="">全部权限</option>
+        <option value="0">管理员</option>
+        <option value="1">默认</option>
+      </select>
+      <select v-model="uStatus" class="sel">
+        <option value="">全部状态</option>
+        <option value="0">正常</option>
+        <option value="1">封禁</option>
+      </select>
+    </section>
+
+    <section class="table-wrap" v-if="tab === 'users'">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th style="width:52px">ID</th>
+            <th>账号</th>
+            <th>昵称</th>
+            <th style="width:110px">权限</th>
+            <th style="width:76px">状态</th>
+            <th style="width:130px">创建时间</th>
+            <th style="width:230px">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-if="uLoading">
+            <td colspan="7" class="center dim">检索中…</td>
+          </tr>
+          <tr v-else-if="!users.length">
+            <td colspan="7" class="center dim">神域尚无其他守夜人，前去首页注册一位吧。</td>
+          </tr>
+          <tr v-else v-for="it in users" :key="it.id">
+            <td class="dim">#{{ it.id }}</td>
+            <td class="strong">{{ it.username }}</td>
+            <td class="dim">{{ it.nickname || '—' }}</td>
+            <td>
+              <span class="ptag" :data-p="it.permission">{{ permText(it.permission) }}</span>
+            </td>
+            <td>
+              <span class="st" :data-s="it.status">{{ statusTextU(it.status) }}</span>
+            </td>
+            <td class="dim">{{ fmtTime(it.createTime) }}</td>
+            <td>
+              <button class="op edit" @click="toggleUserStatus(it)">
+                {{ it.status === 1 ? '解封' : '封禁' }}
+              </button>
+              <button class="op" :class="it.permission === 0 ? 'down' : 'up'" @click="toggleUserPerm(it)">
+                {{ it.permission === 0 ? '降为默认' : '提升管理员' }}
+              </button>
+              <template v-if="confirmUserId === it.id">
+                <button class="op sure" @click="doDeleteUser(it)">确认抹去</button>
+                <button class="op" @click="cancelDeleteUser">取消</button>
+              </template>
+              <button v-else class="op del" @click="askDeleteUser(it)">删除</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="pager" v-if="uTotalPages > 1">
+        <button :disabled="uPage <= 1" @click="uPage--">‹ 上一页</button>
+        <span class="dim">{{ uPage }} / {{ uTotalPages }} 页 · 共 {{ uTotal }} 位</span>
+        <button :disabled="uPage >= uTotalPages" @click="uPage++">下一页 ›</button>
+      </div>
+    </section>
+
     <transition name="toast">
       <div class="toast" :data-type="toast.type" v-if="toast.show">{{ toast.msg }}</div>
     </transition>
@@ -309,6 +547,12 @@ onMounted(() => {
 
           <label>档案描述 *</label>
           <textarea v-model="form.description" rows="4" placeholder="描述这处禁墟 / 人物 / 任务的传说……"></textarea>
+
+          <label>封面图 URL（可选）</label>
+          <input v-model="form.cover" type="text" placeholder="https://… 用于卡片展示封面" />
+
+          <label>标签（可选，逗号分隔）</label>
+          <input v-model="form.tags" type="text" placeholder="如：高危, 须组队, 禁物" />
 
           <div class="row2">
             <div>
@@ -484,6 +728,39 @@ onMounted(() => {
 }
 .pager button:hover:not(:disabled) { border-color: var(--cyan); color: #fff; }
 .pager button:disabled { opacity: .35; cursor: not-allowed; }
+
+/* ===== 模块切换 ===== */
+.tabs { display: flex; gap: 8px; margin: 18px 0 4px; flex-wrap: wrap; }
+.tabs button {
+  border: 1px solid var(--glass-bd); background: rgba(8,10,24,.4);
+  color: var(--ink-dim); padding: 9px 18px; border-radius: 11px; cursor: pointer;
+  font-family: inherit; font-size: 14px; letter-spacing: .08em; transition: .2s;
+}
+.tabs button:hover { color: #fff; border-color: rgba(120,150,255,.4); }
+.tabs button.on {
+  color: #fff; border-color: rgba(245,210,122,.4);
+  background: linear-gradient(100deg, rgba(245,210,122,.16), rgba(255,77,141,.14));
+  box-shadow: 0 0 16px rgba(245,210,122,.22);
+}
+
+/* ===== 批量上下架 ===== */
+.batchbar { display: flex; align-items: center; gap: 12px; margin: 14px 0 6px; }
+.batchbar .dim { font-size: 13px; }
+
+/* 选择框 */
+.cbx { width: 16px; height: 16px; accent-color: var(--cyan); cursor: pointer; }
+
+/* ===== 用户管理 ===== */
+.usertool {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 18px 0 6px;
+}
+.ptag {
+  display: inline-block; font-size: 11.5px; padding: 3px 10px; border-radius: 999px; letter-spacing: .06em;
+}
+.ptag[data-p="0"] { color: var(--gold); border: 1px solid rgba(245,210,122,.35); background: rgba(245,210,122,.08); }
+.ptag[data-p="1"] { color: var(--cyan); border: 1px solid rgba(46,230,255,.3); background: rgba(46,230,255,.07); }
+.op.up:hover { color: var(--gold); border-color: var(--gold); }
+.op.down:hover { color: var(--violet); border-color: var(--violet); }
 
 /* ===== Toast ===== */
 .toast {

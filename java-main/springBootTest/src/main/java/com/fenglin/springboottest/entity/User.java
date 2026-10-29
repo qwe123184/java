@@ -24,7 +24,7 @@ public class User implements Serializable {
     /** 守夜人代号（登录名，唯一） */
     private String username;
 
-    /** 禁墟密钥（BCrypt 加密存储） */
+    /** 禁墟密钥（按需求明文存储，不加密） */
     private String password;
 
     /** 灵魂烙印（邮箱，可空） */
@@ -35,6 +35,21 @@ public class User implements Serializable {
 
     /** 角色：USER（守夜人）/ ADMIN（神域执政官，可进入后台管理系统） */
     private String role;
+
+    /** 权限：0 管理员（执政官，可进入后台管理系统）/ 1 默认（普通守夜人） */
+    private Integer permission;
+
+    /** 昵称（展示用，可空，默认取 username） */
+    private String nickname;
+
+    /** 头像 URL（可空） */
+    private String avatar;
+
+    /** 手机号（可空） */
+    private String phone;
+
+    /** 个人简介（可空） */
+    private String bio;
 
     /** 账号状态：0 正常 / 1 已封禁 */
     private Integer status;
@@ -96,6 +111,46 @@ public class User implements Serializable {
 
     public void setRole(String role) {
         this.role = role;
+    }
+
+    public Integer getPermission() {
+        return permission;
+    }
+
+    public void setPermission(Integer permission) {
+        this.permission = permission;
+    }
+
+    public String getNickname() {
+        return nickname;
+    }
+
+    public void setNickname(String nickname) {
+        this.nickname = nickname;
+    }
+
+    public String getAvatar() {
+        return avatar;
+    }
+
+    public void setAvatar(String avatar) {
+        this.avatar = avatar;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public String getBio() {
+        return bio;
+    }
+
+    public void setBio(String bio) {
+        this.bio = bio;
     }
 
     public Integer getStatus() {

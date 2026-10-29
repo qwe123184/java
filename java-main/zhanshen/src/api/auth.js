@@ -58,4 +58,43 @@ export function me() {
   return api.get('/user/me')
 }
 
+// 修改个人资料（昵称/头像/手机/简介/邮箱/境界）
+export function updateProfile(payload) {
+  return api.put('/user/profile', payload)
+}
+
+// 修改密码
+export function changePassword(payload) {
+  return api.post('/user/password', payload)
+}
+
+// ===== 后台用户管理（仅 ADMIN）=====
+// 用户列表（关键词 / 权限 / 状态筛选）
+export function adminUserList({ keyword, permission, status, page = 1, size = 20 } = {}) {
+  return api.get('/admin/users', {
+    params: {
+      keyword: keyword || undefined,
+      permission: permission == null ? undefined : permission,
+      status: status == null ? undefined : status,
+      page,
+      size
+    }
+  })
+}
+
+// 封禁 / 解封账号（status: 0 正常 / 1 封禁）
+export function adminUserSetStatus(id, status) {
+  return api.put(`/admin/users/${id}/status`, null, { params: { status } })
+}
+
+// 调整权限（permission: 0 管理员 / 1 默认）
+export function adminUserSetPermission(id, permission) {
+  return api.put(`/admin/users/${id}/permission`, null, { params: { permission } })
+}
+
+// 删除账号
+export function adminUserDelete(id) {
+  return api.delete(`/admin/users/${id}`)
+}
+
 export default api

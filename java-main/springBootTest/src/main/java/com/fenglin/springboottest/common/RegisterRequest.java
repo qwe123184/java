@@ -17,7 +17,7 @@ public class RegisterRequest implements Serializable {
     @Size(min = 2, max = 32, message = "守夜人代号长度需在 2–32 位之间。")
     private String username;
 
-    /** 禁墟密钥（明文，后端加密存储） */
+    /** 禁墟密钥（明文，按需求不加密，直接存入数据库） */
     @NotBlank(message = "禁墟密钥不可为空。")
     @Size(min = 4, max = 64, message = "禁墟密钥至少需 4 位，横刀之誓不可轻许。")
     private String password;

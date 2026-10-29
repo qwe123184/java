@@ -34,3 +34,8 @@ export function archiveUpdate(id, payload) {
 export function archiveDelete(id) {
   return api.delete(`/archive/${id}`)
 }
+
+// 批量上下架档案（后台管理）：ids 列表 + status（0 下架 / 1 展示）
+export function archiveBatchStatus(ids, status) {
+  return api.put('/archive/status/batch', { ids, status })
+}

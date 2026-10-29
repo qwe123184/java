@@ -12,6 +12,11 @@ CREATE TABLE IF NOT EXISTS `zhan_shen`.`t_user` (
   `email`       VARCHAR(120) DEFAULT NULL,
   `realm`       VARCHAR(20)  NOT NULL DEFAULT '池境',
   `role`        VARCHAR(20)  NOT NULL DEFAULT 'USER' COMMENT '角色：USER/ADMIN',
+  `permission`  TINYINT      NOT NULL DEFAULT 1 COMMENT '权限：0 管理员(执政官) / 1 默认(普通守夜人)',
+  `nickname`    VARCHAR(50)  DEFAULT NULL COMMENT '昵称（展示用）',
+  `avatar`      VARCHAR(255) DEFAULT NULL COMMENT '头像 URL',
+  `phone`       VARCHAR(20)  DEFAULT NULL COMMENT '手机号',
+  `bio`         VARCHAR(500) DEFAULT NULL COMMENT '个人简介',
   `status`      TINYINT      NOT NULL DEFAULT 0,
   `create_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `update_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -24,6 +29,15 @@ CREATE TABLE IF NOT EXISTS `zhan_shen`.`t_user` (
 -- 兼容已存在的旧表：补齐 role 列（首次创建已含该列时此句因列已存在而失败，被 continue-on-error 忽略）
 ALTER TABLE `zhan_shen`.`t_user` ADD COLUMN `role` VARCHAR(20) NOT NULL DEFAULT 'USER' COMMENT '角色：USER/ADMIN';
 
+-- 兼容已存在的旧表：补齐 permission 列（首次创建已含该列时此句因列已存在而失败，被 continue-on-error 忽略）
+ALTER TABLE `zhan_shen`.`t_user` ADD COLUMN `permission` TINYINT NOT NULL DEFAULT 1 COMMENT '权限：0 管理员(执政官) / 1 默认(普通守夜人)';
+
+-- 兼容已存在的旧表：补齐资料字段（昵称/头像/手机/简介）
+ALTER TABLE `zhan_shen`.`t_user` ADD COLUMN `nickname` VARCHAR(50)  DEFAULT NULL COMMENT '昵称（展示用）';
+ALTER TABLE `zhan_shen`.`t_user` ADD COLUMN `avatar`   VARCHAR(255) DEFAULT NULL COMMENT '头像 URL';
+ALTER TABLE `zhan_shen`.`t_user` ADD COLUMN `phone`    VARCHAR(20)  DEFAULT NULL COMMENT '手机号';
+ALTER TABLE `zhan_shen`.`t_user` ADD COLUMN `bio`      VARCHAR(500) DEFAULT NULL COMMENT '个人简介';
+
 -- 神域档案表（首页展示 / 检索的数据源：禁墟、神秘、守夜人、任务指令等）
 CREATE TABLE IF NOT EXISTS `zhan_shen`.`t_archive` (
   `id`          BIGINT       NOT NULL AUTO_INCREMENT,
@@ -31,6 +45,8 @@ CREATE TABLE IF NOT EXISTS `zhan_shen`.`t_archive` (
   `type`        VARCHAR(20)  NOT NULL COMMENT '禁墟/神秘/守夜人/任务',
   `realm`       VARCHAR(20)  NOT NULL DEFAULT '' COMMENT '境界/等级',
   `description` VARCHAR(500) NOT NULL DEFAULT '' COMMENT '描述',
+  `cover`       VARCHAR(255) DEFAULT NULL COMMENT '封面图 URL',
+  `tags`        VARCHAR(255) DEFAULT NULL COMMENT '标签（逗号分隔）',
   `status`      TINYINT      NOT NULL DEFAULT 1 COMMENT '0 下架 / 1 展示',
   `sort`        INT          NOT NULL DEFAULT 0 COMMENT '排序，越大越靠前',
   `create_time` DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -40,3 +56,7 @@ CREATE TABLE IF NOT EXISTS `zhan_shen`.`t_archive` (
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_general_ci;
+
+-- 兼容已存在的旧表：补齐 cover / tags 列
+ALTER TABLE `zhan_shen`.`t_archive` ADD COLUMN `cover` VARCHAR(255) DEFAULT NULL COMMENT '封面图 URL';
+ALTER TABLE `zhan_shen`.`t_archive` ADD COLUMN `tags`  VARCHAR(255) DEFAULT NULL COMMENT '标签（逗号分隔）';

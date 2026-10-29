@@ -104,6 +104,8 @@ public class ArchiveServiceImpl implements ArchiveService {
         a.setType(req.getType().trim());
         a.setRealm(StringUtils.hasText(req.getRealm()) ? req.getRealm().trim() : "");
         a.setDescription(StringUtils.hasText(req.getDescription()) ? req.getDescription().trim() : "");
+        a.setCover(StringUtils.hasText(req.getCover()) ? req.getCover().trim() : null);
+        a.setTags(StringUtils.hasText(req.getTags()) ? req.getTags().trim() : null);
         a.setStatus(req.getStatus() != null ? req.getStatus() : 1);
         a.setSort(req.getSort() != null ? req.getSort() : 0);
         a.setCreateTime(LocalDateTime.now());
@@ -124,6 +126,8 @@ public class ArchiveServiceImpl implements ArchiveService {
         a.setType(req.getType().trim());
         a.setRealm(StringUtils.hasText(req.getRealm()) ? req.getRealm().trim() : "");
         a.setDescription(StringUtils.hasText(req.getDescription()) ? req.getDescription().trim() : "");
+        if (req.getCover() != null) a.setCover(req.getCover().trim());
+        if (req.getTags() != null) a.setTags(req.getTags().trim());
         if (req.getStatus() != null) {
             a.setStatus(req.getStatus());
         }
@@ -145,5 +149,21 @@ public class ArchiveServiceImpl implements ArchiveService {
         }
         archiveMapper.deleteById(id);
         return Result.success("档案「" + a.getName() + "」已从神域抹除。", (Void) null);
+    }
+
+    @Override
+    public Result<Void> batchStatus(java.util.List<Long> ids, Integer status) {
+        if (ids == null || ids.isEmpty()) {
+            return Result.fail("未选择任何档案。");
+        }
+        if (status == null || (status != 0 && status != 1)) {
+            return Result.fail("状态参数有误（0 下架 / 1 上架）。");
+        }
+        LambdaQueryWrapper<Archive> qw = new LambdaQueryWrapper<>();
+        qw.in(Archive::getId, ids);
+        Archive patch = new Archive();
+        patch.setStatus(status);
+        archiveMapper.update(patch, qw);
+        return Result.success(status == 1 ? "所选档案已批量上架。" : "所选档案已批量下架。", (Void) null);
     }
 }
