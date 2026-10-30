@@ -18,6 +18,11 @@ function showToast(msg, type = '') {
 
 // ===== 执政官信息 =====
 const admin = ref(null)
+
+// 后台顶栏头像：优先展示头像图，加载失败回退首字母
+const adminAvatar = computed(() => admin.value?.avatar?.trim() || null)
+const adminAvatarErr = ref(false)
+watch(adminAvatar, () => (adminAvatarErr.value = false))
 async function loadProfile() {
   if (user.value) { admin.value = user.value; return }
   try {
@@ -236,10 +241,17 @@ const saving = ref(false)
 
 const emptyForm = { name: '', type: '禁墟', realm: '', description: '', cover: '', tags: '', status: 1, sort: 0 }
 const form = ref({ ...emptyForm })
+const coverErr = ref(false)   // 封面预览加载失败标记
+
+// 标签输入 -> 芯片列表预览（按中英文逗号/顿号/空格分隔）
+function parseTagList(s) {
+  return String(s || '').split(/[,，、\s]+/).map(t => t.trim()).filter(Boolean).slice(0, 8)
+}
 
 function openCreate() {
   editing.value = false
   form.value = { ...emptyForm }
+  coverErr.value = false
   modal.value = { ...form.value }
 }
 function openEdit(it) {
@@ -255,6 +267,7 @@ function openEdit(it) {
     status: it.status ?? 1,
     sort: it.sort ?? 0
   }
+  coverErr.value = false
   modal.value = { ...form.value }
 }
 function closeModal() {
@@ -267,6 +280,10 @@ async function save() {
   const f = form.value
   if (!f.name.trim()) return showToast('请填写档案名称。', 'err')
   if (!f.description.trim()) return showToast('请填写档案描述。', 'err')
+  const coverUrl = f.cover.trim()
+  if (coverUrl && !/^(https?:\/\/|data:image\/)/i.test(coverUrl)) {
+    return showToast('封面地址需以 http:// 或 https:// 开头。', 'err')
+  }
 
   saving.value = true
   const payload = {
@@ -274,8 +291,8 @@ async function save() {
     type: f.type,
     realm: f.realm.trim() || undefined,
     description: f.description.trim(),
-    cover: f.cover.trim() || undefined,
-    tags: f.tags.trim() || undefined,
+    cover: coverUrl || undefined,
+    tags: parseTagList(f.tags).join(',') || undefined,
     status: Number(f.status),
     sort: Number(f.sort) || 0
   }
@@ -336,8 +353,11 @@ onMounted(() => {
       </div>
 
       <div class="user">
-        <span class="avatar">{{ (admin?.username || '执')[0] }}</span>
-        <span class="uname">执政官「<b>{{ admin?.username || '…' }}</b>」</span>
+        <span class="avatar">
+          <img v-if="adminAvatar && !adminAvatarErr" :src="adminAvatar" alt="avatar" @error="adminAvatarErr = true" />
+          <template v-else>{{ (admin?.nickname || admin?.username || '执')[0] }}</template>
+        </span>
+        <span class="uname">执政官「<b>{{ admin?.nickname || admin?.username || '…' }}</b>」</span>
         <button class="ghost-btn" @click="goHome">返回神域</button>
         <button class="logout" @click="onLogout">退出后台</button>
       </div>
@@ -550,9 +570,22 @@ onMounted(() => {
 
           <label>封面图 URL（可选）</label>
           <input v-model="form.cover" type="text" placeholder="https://… 用于卡片展示封面" />
+          <div class="cover-preview" v-if="form.cover.trim()">
+            <div v-if="coverErr" class="cover-err">⚠ 封面图片加载失败，请检查链接是否有效</div>
+            <img
+              v-else
+              :src="form.cover.trim()"
+              alt="封面预览"
+              @error="coverErr = true"
+              @load="coverErr = false"
+            />
+          </div>
 
           <label>标签（可选，逗号分隔）</label>
           <input v-model="form.tags" type="text" placeholder="如：高危, 须组队, 禁物" />
+          <div class="tag-preview" v-if="parseTagList(form.tags).length">
+            <span v-for="tg in parseTagList(form.tags)" :key="tg" :data-type="form.type">{{ tg }}</span>
+          </div>
 
           <div class="row2">
             <div>
@@ -611,6 +644,10 @@ onMounted(() => {
 .avatar {
   width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
   background: linear-gradient(135deg, var(--gold), var(--pink)); color: #04050d; font-weight: 800;
+  overflow: hidden;
+}
+.avatar img {
+  width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;
 }
 .user b { color: var(--gold); }
 .ghost-btn {
@@ -810,6 +847,27 @@ onMounted(() => {
 }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+
+/* 封面实时预览 */
+.cover-preview { margin-top: 8px; }
+.cover-preview img {
+  display: block; width: 100%; height: 150px; object-fit: cover;
+  border-radius: 10px; border: 1px solid var(--glass-bd);
+}
+.cover-err {
+  padding: 12px; border-radius: 10px; font-size: 12.5px; color: #ff9ec4;
+  border: 1px dashed rgba(255,158,196,.4); background: rgba(255,77,141,.06);
+}
+
+/* 标签实时预览 */
+.tag-preview { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tag-preview span {
+  font-size: 11.5px; letter-spacing: .08em; padding: 3px 11px; border-radius: 999px;
+  color: var(--violet); border: 1px solid rgba(177,77,255,.3); background: rgba(177,77,255,.08);
+}
+.tag-preview span[data-type="神秘"] { color: var(--cyan); border-color: rgba(46,230,255,.3); background: rgba(46,230,255,.08); }
+.tag-preview span[data-type="守夜人"] { color: var(--gold); border-color: rgba(245,210,122,.3); background: rgba(245,210,122,.08); }
+.tag-preview span[data-type="任务"] { color: var(--pink); border-color: rgba(255,77,141,.3); background: rgba(255,77,141,.08); }
 .modal-close {
   position: absolute; top: 14px; right: 14px; width: 30px; height: 30px;
   border: 1px solid var(--glass-bd); background: rgba(255,255,255,.03); color: var(--ink-dim);

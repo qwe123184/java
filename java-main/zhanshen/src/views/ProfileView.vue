@@ -1,7 +1,7 @@
 <script setup>
-import { onMounted, reactive, ref, computed } from 'vue'
+import { onMounted, reactive, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuth } from '../store/auth'
+import { useAuth, clearSession } from '../store/auth'
 import { me, updateProfile, changePassword } from '../api/auth'
 
 const router = useRouter()
@@ -17,8 +17,8 @@ function showToast(msg, ok = true) {
   toastTimer = setTimeout(() => (toast.value.show = false), 2600)
 }
 
-// 资料表单
-const REALMS = ['盏境', '池境', '川境', '海境', '无量境']
+// 资料表单（境界选项与后端 UserServiceImpl.REALMS 严格一致，避免保存被静默忽略）
+const REALMS = ['盏境', '池境', '川境', '海境']
 const profile = reactive({
   nickname: '',
   avatar: '',
@@ -37,6 +37,27 @@ const pwd = reactive({
 
 const savingProfile = ref(false)
 const savingPwd = ref(false)
+
+// 头像加载失败时回退为首字母（避免破图）
+const avatarErr = ref(false)
+watch(() => profile.avatar, () => (avatarErr.value = false))
+
+// 密码可见性切换
+const showPwd = reactive({ old: false, new: false, confirm: false })
+const pwdMismatch = computed(() => pwd.confirm.length > 0 && pwd.newPassword !== pwd.confirm)
+
+// 格式校验
+const EMAIL_RE = /^[\w.+-]+@[\w-]+(\.[\w-]+)+$/
+const PHONE_RE = /^1\d{10}$/
+function validateProfile() {
+  const email = profile.email.trim()
+  if (email && !EMAIL_RE.test(email)) return '邮箱格式有误，请检查后再铭刻。'
+  const phone = profile.phone.trim()
+  if (phone && !PHONE_RE.test(phone)) return '手机号需为 1 开头的 11 位数字。'
+  const avatar = profile.avatar.trim()
+  if (avatar && !/^(https?:\/\/|data:image\/)/i.test(avatar)) return '头像地址需以 http://、https:// 或 data:image 开头。'
+  return ''
+}
 
 const avatarPreview = computed(() =>
   profile.avatar?.trim() ||
@@ -72,6 +93,8 @@ onMounted(loadProfile)
 // 保存资料
 async function saveProfile() {
   if (savingProfile.value) return
+  const bad = validateProfile()
+  if (bad) return showToast(bad, false)
   savingProfile.value = true
   try {
     const { data } = await updateProfile({
@@ -110,10 +133,15 @@ async function savePassword() {
       newPassword: pwd.newPassword
     })
     if (data?.code === 0) {
-      showToast('禁墟密钥已重塑。')
+      showToast('禁墟密钥已重塑，即将返回神域重新认证…')
       pwd.oldPassword = ''
       pwd.newPassword = ''
       pwd.confirm = ''
+      // 旧令牌不会随改密失效，为确保安全强制退出重新登录
+      setTimeout(() => {
+        clearSession()
+        location.hash = '#/'
+      }, 1600)
     } else {
       showToast(data?.message || '密钥修改失败。', false)
     }
@@ -145,7 +173,7 @@ function goHome() {
       <!-- 资料卡片：头像 + 身份 -->
       <aside class="idcard">
         <div class="avatar-wrap">
-          <img v-if="avatarPreview" :src="avatarPreview" alt="avatar" class="avatar-img" />
+          <img v-if="avatarPreview && !avatarErr" :src="avatarPreview" alt="avatar" class="avatar-img" @error="avatarErr = true" />
           <div v-else class="avatar-letter">{{ initialLetter }}</div>
           <div class="avatar-ring"></div>
         </div>
@@ -199,18 +227,28 @@ function goHome() {
           <div class="form">
             <label class="f">
               <span>原密钥</span>
-              <input v-model="pwd.oldPassword" type="password" placeholder="请输入当前密码" />
+              <span class="pwd-box">
+                <input v-model="pwd.oldPassword" :type="showPwd.old ? 'text' : 'password'" placeholder="请输入当前密码" @keyup.enter="savePassword" />
+                <button type="button" class="eye" @click="showPwd.old = !showPwd.old" :title="showPwd.old ? '隐藏' : '显示'">{{ showPwd.old ? '🙈' : '👁' }}</button>
+              </span>
             </label>
             <label class="f">
               <span>新密钥</span>
-              <input v-model="pwd.newPassword" type="password" placeholder="至少 4 位" />
+              <span class="pwd-box">
+                <input v-model="pwd.newPassword" :type="showPwd.new ? 'text' : 'password'" placeholder="至少 4 位" @keyup.enter="savePassword" />
+                <button type="button" class="eye" @click="showPwd.new = !showPwd.new" :title="showPwd.new ? '隐藏' : '显示'">{{ showPwd.new ? '🙈' : '👁' }}</button>
+              </span>
             </label>
             <label class="f">
               <span>确认新密钥</span>
-              <input v-model="pwd.confirm" type="password" placeholder="再输一次新密码" />
+              <span class="pwd-box">
+                <input v-model="pwd.confirm" :type="showPwd.confirm ? 'text' : 'password'" placeholder="再输一次新密码" @keyup.enter="savePassword" />
+                <button type="button" class="eye" @click="showPwd.confirm = !showPwd.confirm" :title="showPwd.confirm ? '隐藏' : '显示'">{{ showPwd.confirm ? '🙈' : '👁' }}</button>
+              </span>
+              <span v-if="pwdMismatch" class="hint-bad">两次输入的密钥不一致</span>
             </label>
           </div>
-          <button class="save pwd" :disabled="savingPwd" @click="savePassword">
+          <button class="save pwd" :disabled="savingPwd || pwdMismatch" @click="savePassword">
             {{ savingPwd ? '保存中…' : '更新密钥' }}
           </button>
         </div>
@@ -330,6 +368,17 @@ function goHome() {
   box-shadow: 0 0 0 3px rgba(46,230,255,.12), 0 0 22px rgba(46,230,255,.22);
 }
 .f select { appearance: none; cursor: pointer; }
+
+/* 密码输入框：可见性切换 + 不一致提示 */
+.pwd-box { position: relative; display: flex; }
+.pwd-box input { width: 100%; padding-right: 44px; }
+.pwd-box .eye {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  background: none; border: 0; cursor: pointer; font-size: 15px; opacity: .55;
+  transition: .2s; padding: 4px; line-height: 1;
+}
+.pwd-box .eye:hover { opacity: 1; }
+.hint-bad { font-size: 12px; color: var(--pink); letter-spacing: .05em; }
 
 .save {
   margin-top: 20px; border: 0; border-radius: 12px; padding: 12px 26px; cursor: pointer;

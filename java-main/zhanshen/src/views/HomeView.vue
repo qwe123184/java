@@ -36,6 +36,7 @@ onMounted(async () => {
   // 进入神域即拉取档案（首页展示），由后端 /api/archive/list 提供数据
   fetchArchives()
   fetchFeatured()
+  fetchCounts()
 })
 
 onBeforeUnmount(stopCarousel)
@@ -52,6 +53,12 @@ const navs = [
   { key: 'rank', label: '排行' }
 ]
 const activeNav = ref('home')
+
+// 导航栏头像：优先展示用户上传的头像图，加载失败回退首字母
+const navAvatar = computed(() => user.value?.avatar?.trim() || null)
+const navAvatarErr = ref(false)
+watch(navAvatar, () => (navAvatarErr.value = false))
+const navLetter = computed(() => (user.value?.nickname || user.value?.username || '无')[0])
 const toast = ref({ show: false, msg: '' })
 let toastTimer
 function showToast(msg) {
@@ -80,12 +87,90 @@ const loading = ref(false)
 const revision = ref(0) // 每次拉取成功自增，驱动卡片/排行入场动画重放
 let searchTimer
 
-// 拉取神域档案（首页展示 + 搜索），按关键词与类型筛选
+// ===== 检索结果区：排序 + 前端分页（单次拉取全部命中，前端切片，命中量小无需后端翻页）=====
+const sortKey = ref('power') // power 战力（默认）| name 名称 | newest 最新
+const pageSize = 9           // 3×3 网格一页
+const currentPage = ref(1)
+
+// 依所选方式排序（战力降序与后端默认一致，名称按中文拼音，最新按 id 倒序）
+const sortedList = computed(() => {
+  const arr = [...list.value]
+  if (sortKey.value === 'name') {
+    arr.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'zh-Hans-CN'))
+  } else if (sortKey.value === 'newest') {
+    arr.sort((a, b) => (b.id || 0) - (a.id || 0))
+  } else {
+    arr.sort((a, b) => (b.sort || 0) - (a.sort || 0) || (b.id || 0) - (a.id || 0))
+  }
+  return arr
+})
+const totalPages = computed(() => Math.max(1, Math.ceil(sortedList.value.length / pageSize)))
+const pagedList = computed(() =>
+  sortedList.value.slice((currentPage.value - 1) * pageSize, currentPage.value * pageSize)
+)
+
+// 数据变化后若当前页越界则回退到最后一页
+watch(totalPages, tp => { if (currentPage.value > tp) currentPage.value = tp })
+
+function goPage(p) {
+  if (p === '…' || p < 1 || p > totalPages.value || p === currentPage.value) return
+  currentPage.value = p
+  // 翻页后回到结果区顶部，避免停留在长列表尾部
+  document.querySelector('.results')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+// 页码序列：页数多时以省略号折叠（1 2 … 5 6 … 9 10）
+const pageNumbers = computed(() => {
+  const tp = totalPages.value
+  const cur = currentPage.value
+  if (tp <= 7) return Array.from({ length: tp }, (_, i) => i + 1)
+  const picks = [...new Set([1, 2, tp - 1, tp, cur - 1, cur, cur + 1])]
+    .filter(p => p >= 1 && p <= tp)
+    .sort((a, b) => a - b)
+  const out = []
+  picks.forEach((p, i) => {
+    if (i && p - picks[i - 1] > 1) out.push('…')
+    out.push(p)
+  })
+  return out
+})
+
+// 分类计数（进入首页时全量拉一次，让分类 chip 显示各自数量）
+const counts = ref({ 全部: 0, 禁墟: 0, 神秘: 0, 守夜人: 0, 任务: 0 })
+async function fetchCounts() {
+  try {
+    const { data } = await archiveList({ size: 500 })
+    if (data?.code === 0 && data?.data) {
+      const recs = data.data.records || []
+      const c = { 全部: recs.length, 禁墟: 0, 神秘: 0, 守夜人: 0, 任务: 0 }
+      recs.forEach(r => { if (c[r.type] !== undefined) c[r.type]++ })
+      counts.value = c
+    }
+  } catch { /* 计数为增强项，失败不阻塞首页 */ }
+}
+
+// 卡片标签（tags 字段，逗号分隔）与关键词高亮
+function parseTags(s) {
+  return String(s || '').split(/[,，]/).map(t => t.trim()).filter(Boolean)
+}
+function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') }
+function highlight(text) {
+  const s = String(text ?? '')
+  const k = query.value.trim()
+  if (!k) return [{ t: s, hit: false }]
+  return s
+    .split(new RegExp(`(${escRe(k)})`, 'gi'))
+    .filter(p => p !== '')
+    .map(t => ({ t, hit: t.toLowerCase() === k.toLowerCase() }))
+}
+function clearQuery() { query.value = '' }
+
+// 拉取神域档案（首页展示 + 搜索），按关键词与类型筛选；命中结果交由前端排序/分页
 async function fetchArchives() {
   loading.value = true
   try {
     const type = activeCat.value === '全部' ? '' : activeCat.value
-    const { data } = await archiveList({ keyword: query.value.trim(), type })
+    const { data } = await archiveList({ keyword: query.value.trim(), type, size: 200 })
     if (data?.code === 0 && data?.data) {
       list.value = data.data.records || []
       total.value = data.data.total || 0
@@ -104,8 +189,9 @@ async function fetchArchives() {
   }
 }
 
-// 关键词 / 分类变化时防抖检索（300ms），避免每次按键都打接口
+// 关键词 / 分类变化时防抖检索（300ms），避免每次按键都打接口；并回到第一页
 watch([query, activeCat], () => {
+  currentPage.value = 1
   clearTimeout(searchTimer)
   searchTimer = setTimeout(fetchArchives, 300)
 })
@@ -206,8 +292,11 @@ function closeDetail() {
       </button>
 
       <div class="user">
-        <span class="avatar">{{ (user?.username || '无')[0] }}</span>
-        <span class="uname">守夜人「<b>{{ user?.username || '无名' }}</b>」</span>
+        <span class="avatar">
+          <img v-if="navAvatar && !navAvatarErr" :src="navAvatar" alt="avatar" @error="navAvatarErr = true" />
+          <template v-else>{{ navLetter }}</template>
+        </span>
+        <span class="uname">守夜人「<b>{{ user?.nickname || user?.username || '无名' }}</b>」</span>
         <button class="profile-entry" @click="goProfile" title="个人中心">个人中心</button>
         <button class="logout" @click="onLogout">退出神域</button>
       </div>
@@ -240,7 +329,7 @@ function closeDetail() {
           :key="c"
           :class="{ on: activeCat === c }"
           @click="activeCat = c"
-        >{{ c }}</button>
+        >{{ c }}<i class="cnt" v-if="counts[c]">{{ counts[c] }}</i></button>
       </div>
     </section>
 
@@ -248,6 +337,7 @@ function closeDetail() {
     <section class="featured" v-if="view === 'home' && featured.length" @mouseenter="stopCarousel" @mouseleave="startCarousel">
       <transition name="cfade" mode="out-in">
         <div class="feat-slide" :key="featIdx" :data-type="featured[featIdx].type" @click="openDetail(featured[featIdx])">
+          <div class="feat-cover" v-if="featured[featIdx].cover" :style="{ backgroundImage: 'url(\'' + featured[featIdx].cover + '\')' }"></div>
           <span class="feat-glyph">{{ typeGlyph[featured[featIdx].type] || '◈' }}</span>
           <div class="feat-body">
             <span class="feat-tag" :data-type="featured[featIdx].type">{{ featured[featIdx].type }} · 精选</span>
@@ -273,11 +363,24 @@ function closeDetail() {
     <section class="results">
       <div class="res-head">
         <span>{{ view === 'rank' ? '境界排行' : '检索结果' }}</span>
-        <span class="count">
-          <template v-if="loading">检索中…</template>
-          <template v-else-if="view === 'rank'">{{ total }} 位 · 按战力排序</template>
-          <template v-else>{{ total }} 条 · 当前「{{ activeCat }}」</template>
-        </span>
+        <div class="res-tools">
+          <template v-if="view === 'home' && sortedList.length">
+            <div class="sort-pills" role="group" aria-label="排序方式">
+              <span class="sort-label">排序</span>
+              <button :class="{ on: sortKey === 'power' }" @click="sortKey = 'power'" title="按战力从高到低">战力</button>
+              <button :class="{ on: sortKey === 'name' }" @click="sortKey = 'name'" title="按名称拼音排序">名称</button>
+              <button :class="{ on: sortKey === 'newest' }" @click="sortKey = 'newest'" title="按录入时间从新到旧">最新</button>
+            </div>
+            <button class="kw-chip" v-if="query.trim()" @click="clearQuery" title="清除关键词">
+              「{{ query.trim() }}」<span class="x">✕</span>
+            </button>
+          </template>
+          <span class="count">
+            <template v-if="loading">检索中…</template>
+            <template v-else-if="view === 'rank'">{{ total }} 位 · 按战力排序</template>
+            <template v-else>{{ total }} 条 · 当前「{{ activeCat }}」</template>
+          </span>
+        </div>
       </div>
 
       <!-- 骨架屏：首次/空结果加载时显示 -->
@@ -290,16 +393,37 @@ function closeDetail() {
       </div>
 
       <!-- 首页：卡片网格 -->
-      <div v-else-if="view === 'home' && list.length" class="grid" :key="revision">
-        <article class="card" v-for="(it, i) in list" :key="it.id ?? it.name" :style="{ '--i': i }">
+      <div v-else-if="view === 'home' && sortedList.length" class="grid" :key="revision + '-' + currentPage + '-' + sortKey">
+        <article
+          class="card"
+          v-for="(it, i) in pagedList"
+          :key="it.id ?? it.name"
+          :class="{ 'has-cover': it.cover }"
+          :style="it.cover
+            ? { '--i': i, backgroundImage: 'linear-gradient(180deg, rgba(7,9,20,.68), rgba(7,9,20,.88)), url(\'' + it.cover + '\')' }
+            : { '--i': i }"
+        >
           <header>
             <span class="glyph" :data-type="it.type">{{ typeGlyph[it.type] || '◈' }}</span>
             <div class="titles">
-              <h3>{{ it.name }}</h3>
+              <h3>
+                <template v-for="(seg, si) in highlight(it.name)" :key="si">
+                  <mark v-if="seg.hit" class="hl">{{ seg.t }}</mark>
+                  <template v-else>{{ seg.t }}</template>
+                </template>
+              </h3>
               <span class="tag" :data-type="it.type">{{ it.type }}</span>
             </div>
           </header>
-          <p class="desc">{{ it.desc }}</p>
+          <p class="desc">
+            <template v-for="(seg, si) in highlight(it.desc)" :key="si">
+              <mark v-if="seg.hit" class="hl">{{ seg.t }}</mark>
+              <template v-else>{{ seg.t }}</template>
+            </template>
+          </p>
+          <div class="mini-tags" v-if="parseTags(it.tags).length">
+            <span v-for="tg in parseTags(it.tags)" :key="tg" :data-type="it.type">{{ tg }}</span>
+          </div>
           <footer>
             <span class="realm">境界 · {{ it.realm }}</span>
             <button class="more" @click="openDetail(it)">查阅 <span class="arrow">→</span></button>
@@ -307,11 +431,21 @@ function closeDetail() {
         </article>
       </div>
 
+      <!-- 分页（检索结果一页放不下时出现） -->
+      <div class="pager" v-if="view === 'home' && !loading && totalPages > 1">
+        <button class="pg-nav" :disabled="currentPage === 1" @click="goPage(currentPage - 1)">‹ 上一页</button>
+        <template v-for="(p, i) in pageNumbers" :key="i">
+          <span v-if="p === '…'" class="pg-dots">…</span>
+          <button v-else class="pg-num" :class="{ on: p === currentPage }" @click="goPage(p)">{{ p }}</button>
+        </template>
+        <button class="pg-nav" :disabled="currentPage === totalPages" @click="goPage(currentPage + 1)">下一页 ›</button>
+      </div>
+
       <!-- 排行：战力榜 -->
-      <div v-else-if="view === 'rank' && list.length" class="ranklist" :key="revision">
+      <div v-else-if="view === 'rank' && sortedList.length" class="ranklist" :key="revision">
         <article
           class="row"
-          v-for="(it, i) in list"
+          v-for="(it, i) in sortedList"
           :key="it.id ?? it.name"
           :style="{ '--i': i }"
           :data-type="it.type"
@@ -334,7 +468,8 @@ function closeDetail() {
 
       <div v-else class="empty">
         <div class="e-glyph">☾</div>
-        <p>迷雾中未见「{{ query }}」的踪迹，换个禁墟之名再试。</p>
+        <p v-if="query.trim()">迷雾中未见「{{ query.trim() }}」的踪迹，换个禁墟之名再试。</p>
+        <p v-else>此界尚无档案流传，等待第一缕微光。</p>
       </div>
     </section>
 
@@ -353,6 +488,7 @@ function closeDetail() {
           </div>
 
           <template v-else-if="detailItem">
+            <div class="modal-cover" v-if="detailItem.cover" :style="{ backgroundImage: 'url(\'' + detailItem.cover + '\')' }"></div>
             <header class="modal-head">
               <span class="glyph" :data-type="detailItem.type">{{ typeGlyph[detailItem.type] || '◈' }}</span>
               <div>
@@ -362,6 +498,9 @@ function closeDetail() {
             </header>
             <div class="modal-realm">境界 · <b>{{ detailItem.realm }}</b></div>
             <p class="modal-desc">{{ detailItem.desc }}</p>
+            <div class="modal-tags" v-if="parseTags(detailItem.tags).length">
+              <span v-for="tg in parseTags(detailItem.tags)" :key="tg" :data-type="detailItem.type">{{ tg }}</span>
+            </div>
           </template>
         </div>
       </div>
@@ -444,6 +583,10 @@ function closeDetail() {
   background: linear-gradient(135deg, var(--violet), var(--pink)); color: #04050d;
   font-weight: 800; font-family: serif;
   position: relative;
+  overflow: hidden;
+}
+.avatar img {
+  width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block;
 }
 .avatar::after {
   content: ""; position: absolute; inset: -3px; border-radius: 50%;
@@ -571,6 +714,16 @@ function closeDetail() {
 .feat-slide[data-type="神秘"] { background: radial-gradient(120% 140% at 0% 0%, rgba(46,230,255,.16), transparent 60%); }
 .feat-slide[data-type="守夜人"] { background: radial-gradient(120% 140% at 0% 0%, rgba(245,210,122,.16), transparent 60%); }
 .feat-slide[data-type="任务"] { background: radial-gradient(120% 140% at 0% 0%, rgba(255,77,141,.16), transparent 60%); }
+.feat-cover {
+  position: absolute; inset: 0; z-index: 0;
+  background-size: cover; background-position: center;
+  animation: riseIn .5s both;
+}
+.feat-cover::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, rgba(4,5,13,.92) 0%, rgba(4,5,13,.72) 46%, rgba(4,5,13,.3) 100%);
+}
+.feat-slide > .feat-glyph, .feat-slide > .feat-body { position: relative; z-index: 1; }
 .feat-glyph {
   width: 64px; height: 64px; flex-shrink: 0; display: grid; place-items: center;
   border-radius: 16px; font-size: 30px;
@@ -614,10 +767,83 @@ function closeDetail() {
 /* ===== 结果 ===== */
 .results { max-width: 980px; margin: 0 auto; }
 .res-head {
-  display: flex; justify-content: space-between; align-items: baseline;
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap;
   margin-bottom: 16px; color: var(--ink); font-size: 15px; letter-spacing: .08em;
 }
 .res-head .count { color: var(--ink-dim); font-size: 13px; }
+.res-tools { display: inline-flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+/* 排序切换 */
+.sort-pills {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px; border-radius: 10px;
+  border: 1px solid var(--glass-bd); background: rgba(8,10,24,.4);
+}
+.sort-label { font-size: 11.5px; color: #5a6390; letter-spacing: .1em; padding: 0 6px 0 8px; }
+.sort-pills button {
+  border: 0; background: transparent; color: var(--ink-dim); cursor: pointer;
+  font-family: inherit; font-size: 12.5px; padding: 5px 12px; border-radius: 7px;
+  letter-spacing: .06em; transition: .2s;
+}
+.sort-pills button:hover { color: #fff; }
+.sort-pills button.on {
+  color: #04050d; font-weight: 700;
+  background: linear-gradient(100deg, var(--cyan), var(--violet));
+  box-shadow: 0 0 12px rgba(46,230,255,.35);
+}
+
+/* 当前关键词（点击清除） */
+.kw-chip {
+  display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+  font-family: inherit; font-size: 12.5px; letter-spacing: .04em;
+  color: var(--cyan); border: 1px solid rgba(46,230,255,.35);
+  background: rgba(46,230,255,.08); border-radius: 999px; padding: 5px 12px;
+  transition: .2s;
+}
+.kw-chip .x {
+  display: inline-grid; place-items: center; width: 16px; height: 16px;
+  border-radius: 50%; font-size: 10px; background: rgba(46,230,255,.18); transition: .2s;
+}
+.kw-chip:hover { color: #fff; border-color: var(--pink); box-shadow: 0 0 14px rgba(255,77,141,.3); }
+.kw-chip:hover .x { background: rgba(255,77,141,.3); }
+
+/* 分类计数角标 */
+.chips button .cnt {
+  font-style: normal; margin-left: 7px; padding: 1px 7px;
+  font-size: 10.5px; border-radius: 999px; vertical-align: 1px;
+  color: var(--ink-dim); background: rgba(120,150,255,.14); transition: .2s;
+}
+.chips button.on .cnt { color: #04050d; background: rgba(4,5,13,.25); }
+
+/* 关键词高亮 */
+.hl {
+  background: linear-gradient(100deg, rgba(46,230,255,.32), rgba(177,77,255,.32));
+  color: #fff; border-radius: 4px; padding: 0 3px;
+  box-shadow: 0 0 10px rgba(46,230,255,.28);
+  text-shadow: 0 0 8px rgba(46,230,255,.5);
+}
+
+/* 卡片标签（tags 字段） */
+.mini-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
+
+/* 卡片封面：作为整卡背景图（模板内联渐变暗色遮罩 + 图片） */
+.card.has-cover {
+  background-size: cover; background-position: center;
+  border-color: rgba(120,150,255,.24);
+  text-shadow: 0 1px 6px rgba(0,0,0,.55);
+}
+.card.has-cover:hover {
+  border-color: rgba(120,150,255,.45);
+  box-shadow: 0 18px 46px rgba(0,0,0,.55), 0 0 34px rgba(46,230,255,.26);
+}
+.mini-tags span {
+  font-size: 10.5px; letter-spacing: .06em; padding: 2px 9px; border-radius: 999px;
+  color: var(--ink-dim); border: 1px solid rgba(120,150,255,.18);
+  background: rgba(120,150,255,.06); transition: .2s;
+}
+.card:hover .mini-tags span { color: #cfd8ff; border-color: rgba(120,150,255,.35); }
+.mini-tags span[data-type="守夜人"] { color: var(--gold); border-color: rgba(245,210,122,.25); background: rgba(245,210,122,.06); }
+.mini-tags span[data-type="任务"] { color: var(--pink); border-color: rgba(255,77,141,.25); background: rgba(255,77,141,.06); }
 
 .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .card {
@@ -682,6 +908,27 @@ function closeDetail() {
 .more .arrow { transition: transform .25s; }
 .more:hover { color: #fff; text-shadow: 0 0 12px var(--cyan); }
 .more:hover .arrow { transform: translateX(4px); }
+
+/* ===== 分页 ===== */
+.pager {
+  display: flex; justify-content: center; align-items: center; gap: 7px;
+  margin-top: 26px; flex-wrap: wrap;
+}
+.pager button {
+  min-width: 34px; height: 34px; padding: 0 10px; cursor: pointer;
+  border-radius: 10px; font-family: inherit; font-size: 13px; letter-spacing: .04em;
+  color: var(--ink-dim); border: 1px solid var(--glass-bd);
+  background: rgba(8,10,24,.4); transition: .2s;
+}
+.pager button:hover:not(:disabled):not(.on) { color: #fff; border-color: var(--cyan); box-shadow: 0 0 12px rgba(46,230,255,.2); }
+.pager button.on {
+  color: #04050d; font-weight: 700; border-color: transparent;
+  background: linear-gradient(100deg, var(--cyan), var(--violet));
+  box-shadow: 0 0 14px rgba(46,230,255,.35);
+}
+.pager button:disabled { opacity: .35; cursor: not-allowed; }
+.pager .pg-dots { color: #5a6390; font-size: 13px; padding: 0 2px; user-select: none; }
+.pager .pg-nav { letter-spacing: .08em; }
 
 /* 骨架屏 */
 .card.skel { opacity: 1; animation: none; gap: 14px; }
@@ -804,6 +1051,22 @@ function closeDetail() {
 .modal-realm { margin: 18px 0 10px; font-size: 13.5px; color: var(--ink-dim); letter-spacing: .06em; animation: riseIn .4s .12s both; }
 .modal-realm b { color: var(--gold); }
 .modal-desc { color: var(--ink); font-size: 14.5px; line-height: 1.85; animation: riseIn .4s .18s both; }
+
+/* 详情弹窗封面与标签 */
+.modal-cover {
+  height: 168px; margin: -30px -30px 18px; border-radius: 20px 20px 0 0;
+  background-size: cover; background-position: center;
+  box-shadow: inset 0 -70px 80px rgba(4,5,13,.72), inset 0 1px 0 rgba(255,255,255,.08);
+  animation: riseIn .4s both;
+}
+.modal-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; animation: riseIn .4s .24s both; }
+.modal-tags span {
+  font-size: 12px; letter-spacing: .08em; padding: 3px 12px; border-radius: 999px;
+  color: var(--violet); border: 1px solid rgba(177,77,255,.3); background: rgba(177,77,255,.08);
+}
+.modal-tags span[data-type="神秘"] { color: var(--cyan); border-color: rgba(46,230,255,.3); background: rgba(46,230,255,.08); }
+.modal-tags span[data-type="守夜人"] { color: var(--gold); border-color: rgba(245,210,122,.3); background: rgba(245,210,122,.08); }
+.modal-tags span[data-type="任务"] { color: var(--pink); border-color: rgba(255,77,141,.3); background: rgba(255,77,141,.08); }
 .modal-loading { display: flex; align-items: center; gap: 12px; color: var(--ink-dim); font-size: 14px; padding: 18px 4px; }
 .modal-loading .spinner {
   width: 16px; height: 16px; border-radius: 50%;

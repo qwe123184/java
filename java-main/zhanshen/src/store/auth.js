@@ -48,10 +48,11 @@ export function useAuth() {
   const isAdmin = computed(() => session.user?.permission === 0)
 
   // 登录/注册成功后写入会话
+  // 资料更新等场景只传 user（token 传 null），此时保留原令牌，避免会话被误清
   function setSession(user, accessToken, refreshToken) {
-    session.user = user
-    session.accessToken = accessToken
-    session.refreshToken = refreshToken
+    if (user) session.user = user
+    if (accessToken) session.accessToken = accessToken
+    if (refreshToken) session.refreshToken = refreshToken
     persist()
   }
 
