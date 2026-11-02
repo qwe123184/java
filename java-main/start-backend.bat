@@ -37,6 +37,12 @@ if not defined JAVA_HOME (
 )
 set "PATH=%JAVA_HOME%\bin;%PATH%"
 
+REM ---- defensive: these env vars (injected by some dev-tool terminals) can
+REM      silently override Spring's server.port via relaxed binding ----
+set "SERVER__PORT="
+set "SERVER__HOST="
+set "SERVER_PORT="
+
 REM ---- avoid localhost going through HTTP proxy ----
 set "no_proxy=localhost,127.0.0.1"
 set "NO_PROXY=localhost,127.0.0.1"
