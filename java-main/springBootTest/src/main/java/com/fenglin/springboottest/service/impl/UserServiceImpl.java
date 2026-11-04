@@ -1,6 +1,7 @@
 package com.fenglin.springboottest.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fenglin.springboottest.common.ChangePasswordRequest;
@@ -32,6 +33,14 @@ public class UserServiceImpl implements UserService {
     private static final List<String> REALMS = Arrays.asList("盏境", "池境", "川境", "海境");
     private static final String DEFAULT_REALM = "池境";
     private static final int MIN_PASSWORD_LEN = 4;
+
+    /** 资料字段服务端格式校验（与前端规则一致，防止绕过前端写入脏数据） */
+    private static final java.util.regex.Pattern EMAIL_RE =
+            java.util.regex.Pattern.compile("^[\\w.+-]+@[\\w-]+(\\.[\\w-]+)+$");
+    private static final java.util.regex.Pattern PHONE_RE =
+            java.util.regex.Pattern.compile("^1\\d{10}$");
+    private static final java.util.regex.Pattern AVATAR_RE =
+            java.util.regex.Pattern.compile("^(https?://|data:image/).*", java.util.regex.Pattern.CASE_INSENSITIVE);
 
     @Autowired
     private UserMapper userMapper;
@@ -207,18 +216,44 @@ public class UserServiceImpl implements UserService {
         if (user == null) {
             return Result.fail("守夜人信息已消散。");
         }
-        // 仅允许修改自身展示字段（账号/密码/权限/状态不可经此接口变更）
-        if (req.getNickname() != null) user.setNickname(req.getNickname().trim());
-        if (req.getAvatar() != null) user.setAvatar(req.getAvatar().trim());
-        if (req.getPhone() != null) user.setPhone(req.getPhone().trim());
-        if (req.getBio() != null) user.setBio(req.getBio().trim());
-        if (req.getEmail() != null) user.setEmail(req.getEmail().trim());
-        if (req.getRealm() != null) {
-            String realm = req.getRealm().trim();
-            user.setRealm(!realm.isEmpty() && REALMS.contains(realm) ? realm : user.getRealm());
+        // 服务端格式校验（与前端规则一致）
+        if (StringUtils.hasText(req.getEmail()) && !EMAIL_RE.matcher(req.getEmail().trim()).matches()) {
+            return Result.fail("邮箱格式有误，请检查后再保存。");
         }
-        userMapper.updateById(user);
-        return Result.success("守夜人资料已更新。", UserVO.fromEntity(user));
+        if (StringUtils.hasText(req.getPhone()) && !PHONE_RE.matcher(req.getPhone().trim()).matches()) {
+            return Result.fail("手机号需为 1 开头的 11 位数字。");
+        }
+        if (StringUtils.hasText(req.getAvatar()) && !AVATAR_RE.matcher(req.getAvatar().trim()).matches()) {
+            return Result.fail("头像地址需以 http://、https:// 或 data:image 开头。");
+        }
+
+        // 使用 UpdateWrapper 显式 set：空串会被写为 NULL，实现“清空字段”并真正落库
+        // （此前 updateById 跳过 null 字段，导致填过的资料无法清空）
+        LambdaUpdateWrapper<User> uw = new LambdaUpdateWrapper<>();
+        uw.eq(User::getId, userId)
+                .set(User::getNickname, trimToNull(req.getNickname()))
+                .set(User::getAvatar, trimToNull(req.getAvatar()))
+                .set(User::getPhone, trimToNull(req.getPhone()))
+                .set(User::getBio, trimToNull(req.getBio()))
+                .set(User::getEmail, trimToNull(req.getEmail()));
+        // 境界为空或非法时保留原境界（表字段 NOT NULL，不允许清空）
+        if (StringUtils.hasText(req.getRealm()) && REALMS.contains(req.getRealm().trim())) {
+            uw.set(User::getRealm, req.getRealm().trim());
+        }
+        userMapper.update(null, uw);
+
+        // 重新查询，返回数据库中的最新资料（含 update_time 等由数据库维护的字段）
+        User latest = userMapper.selectById(userId);
+        return Result.success("守夜人资料已更新。", UserVO.fromEntity(latest));
+    }
+
+    /** 去除首尾空白；空串归一为 null（写入数据库即“清空”） */
+    private static String trimToNull(String s) {
+        if (s == null) {
+            return null;
+        }
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
     }
 
     @Override

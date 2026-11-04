@@ -25,6 +25,7 @@ function goProfile() {
 
 // 进入神域时以访问令牌拉取最新守夜人信息，确保会话有效（保留已有后端接口调用）
 onMounted(async () => {
+  loadHistory()
   if (!user.value) {
     try {
       const { data } = await me()
@@ -81,20 +82,63 @@ const query = ref('')
 const cats = ['全部', '禁墟', '神秘', '守夜人', '任务']
 const activeCat = ref('全部')
 
-const list = ref([])   // 当前展示的档案
-const total = ref(0)   // 命中总数
+const list = ref([])          // 后端 keyword+type 命中（全集，前端再叠加过滤）
 const loading = ref(false)
 const revision = ref(0) // 每次拉取成功自增，驱动卡片/排行入场动画重放
 let searchTimer
+
+// 全量档案（进入首页拉一次，用于联想 / 标签云 / 境界筛选 / 热门聚合）
+const allArchives = ref([])
+
+// 本地筛选（在后端命中的基础上叠加“境界”与“标签”过滤）
+const activeRealms = ref([])   // 选中的境界（可多选）
+const activeTags = ref([])     // 选中的标签（可多选）
+
+// 搜索历史（localStorage 持久化）
+const HISTORY_KEY = 'zs_search_history'
+const searchHistory = ref([])
+function loadHistory() {
+  try { searchHistory.value = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]') } catch { searchHistory.value = [] }
+}
+function recordHistory(kw) {
+  const k = (kw || '').trim()
+  if (!k) return
+  const next = [k, ...searchHistory.value.filter(x => x !== k)].slice(0, 8)
+  searchHistory.value = next
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(next)) } catch { /* 隐私模式忽略 */ }
+}
+function clearHistory() {
+  searchHistory.value = []
+  try { localStorage.removeItem(HISTORY_KEY) } catch { /* 忽略 */ }
+}
+
+// 搜索建议 / 历史 / 热门 下拉面板状态
+const showSuggest = ref(false)
+const suggestIndex = ref(-1)
 
 // ===== 检索结果区：排序 + 前端分页（单次拉取全部命中，前端切片，命中量小无需后端翻页）=====
 const sortKey = ref('power') // power 战力（默认）| name 名称 | newest 最新
 const pageSize = 9           // 3×3 网格一页
 const currentPage = ref(1)
 
+// 在后端命中的基础上叠加境界 / 标签本地过滤
+const filteredList = computed(() => {
+  let arr = list.value
+  if (activeRealms.value.length) {
+    arr = arr.filter(it => activeRealms.value.includes(it.realm))
+  }
+  if (activeTags.value.length) {
+    arr = arr.filter(it => parseTags(it.tags).some(t => activeTags.value.includes(t)))
+  }
+  return arr
+})
+
+// 命中总数（经本地过滤后）
+const total = computed(() => filteredList.value.length)
+
 // 依所选方式排序（战力降序与后端默认一致，名称按中文拼音，最新按 id 倒序）
 const sortedList = computed(() => {
-  const arr = [...list.value]
+  const arr = [...filteredList.value]
   if (sortKey.value === 'name') {
     arr.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'zh-Hans-CN'))
   } else if (sortKey.value === 'newest') {
@@ -142,6 +186,7 @@ async function fetchCounts() {
     const { data } = await archiveList({ size: 500 })
     if (data?.code === 0 && data?.data) {
       const recs = data.data.records || []
+      allArchives.value = recs
       const c = { 全部: recs.length, 禁墟: 0, 神秘: 0, 守夜人: 0, 任务: 0 }
       recs.forEach(r => { if (c[r.type] !== undefined) c[r.type]++ })
       counts.value = c
@@ -165,6 +210,96 @@ function highlight(text) {
 }
 function clearQuery() { query.value = '' }
 
+// ===== 标签云 / 境界筛选（从全量档案聚合，前端本地过滤）=====
+const tagCloud = computed(() => {
+  const m = new Map()
+  allArchives.value.forEach(r => parseTags(r.tags).forEach(t => m.set(t, (m.get(t) || 0) + 1)))
+  return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t)
+})
+const realmOptions = computed(() => {
+  const s = new Set()
+  allArchives.value.forEach(r => { if (r.realm) s.add(r.realm) })
+  return [...s]
+})
+
+// 热门搜索：标签高频词 + 高战力名称，去重取前 8
+const hotTerms = computed(() => {
+  const m = new Map()
+  allArchives.value.forEach(r => parseTags(r.tags).forEach(t => m.set(t, (m.get(t) || 0) + 1)))
+  const byTag = [...m.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t)
+  const byName = [...allArchives.value]
+    .sort((a, b) => (b.sort || 0) - (a.sort || 0))
+    .slice(0, 4)
+    .map(r => r.name)
+  const seen = new Set(); const out = []
+  for (const w of [...byTag, ...byName]) {
+    if (w && !seen.has(w)) { seen.add(w); out.push(w) }
+  }
+  return out.slice(0, 8)
+})
+
+// 输入联想：从全量档案的名称 / 标签中匹配当前关键词
+const suggestions = computed(() => {
+  const k = query.value.trim().toLowerCase()
+  if (!k) return []
+  const nameHits = []
+  const tagHits = new Set()
+  for (const r of allArchives.value) {
+    if (nameHits.length < 8 && (r.name || '').toLowerCase().includes(k)) {
+      nameHits.push({ text: r.name, type: r.type, kind: 'name' })
+    }
+    parseTags(r.tags).forEach(t => { if (t.toLowerCase().includes(k)) tagHits.add(t) })
+  }
+  const tagList = [...tagHits].slice(0, 6).map(t => ({ text: t, type: '', kind: 'tag' }))
+  return [...nameHits, ...tagList].slice(0, 10)
+})
+
+// 空结果时的热门推荐（高战力档案）
+const recommendList = computed(() =>
+  [...allArchives.value]
+    .sort((a, b) => (b.sort || 0) - (a.sort || 0))
+    .slice(0, 6)
+)
+
+// ===== 搜索提交 / 历史 / 联想交互 =====
+function submitSearch() {
+  recordHistory(query.value)
+  showSuggest.value = false
+  suggestIndex.value = -1
+  fetchArchives()
+}
+function fillQuery(kw) {
+  query.value = kw
+  currentPage.value = 1
+  submitSearch()
+}
+function onSearchFocus() { showSuggest.value = true; suggestIndex.value = -1 }
+function onSearchBlur() { setTimeout(() => (showSuggest.value = false), 160) }
+function pickSuggestion(i) {
+  const s = suggestions.value[i]
+  if (s) fillQuery(s.text)
+}
+function onSuggestKey(e) {
+  const n = suggestions.value.length
+  if (e.key === 'ArrowDown') { e.preventDefault(); suggestIndex.value = n ? (suggestIndex.value + 1) % n : 0 }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); suggestIndex.value = n ? (suggestIndex.value - 1 + n) % n : n - 1 }
+  else if (e.key === 'Enter') { if (suggestIndex.value >= 0) { e.preventDefault(); pickSuggestion(suggestIndex.value) } }
+  else if (e.key === 'Escape') { showSuggest.value = false }
+}
+function toggleTag(t) {
+  const i = activeTags.value.indexOf(t)
+  if (i >= 0) activeTags.value.splice(i, 1)
+  else activeTags.value.push(t)
+  currentPage.value = 1
+}
+function toggleRealm(r) {
+  const i = activeRealms.value.indexOf(r)
+  if (i >= 0) activeRealms.value.splice(i, 1)
+  else activeRealms.value.push(r)
+  currentPage.value = 1
+}
+function clearFilters() { activeRealms.value = []; activeTags.value = []; currentPage.value = 1 }
+
 // 拉取神域档案（首页展示 + 搜索），按关键词与类型筛选；命中结果交由前端排序/分页
 async function fetchArchives() {
   loading.value = true
@@ -173,16 +308,13 @@ async function fetchArchives() {
     const { data } = await archiveList({ keyword: query.value.trim(), type, size: 200 })
     if (data?.code === 0 && data?.data) {
       list.value = data.data.records || []
-      total.value = data.data.total || 0
     } else {
       list.value = []
-      total.value = 0
     }
     revision.value++
   } catch {
     // 检索失败时静默回退为空列表（令牌失效时拦截器会清理会话并跳登录）
     list.value = []
-    total.value = 0
     revision.value++
   } finally {
     loading.value = false

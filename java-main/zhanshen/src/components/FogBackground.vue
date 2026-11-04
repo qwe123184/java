@@ -72,14 +72,36 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <canvas ref="cv" class="fog"></canvas>
+  <div class="bg-stack">
+    <!-- 主题背景图：禁墟夜景（遗迹 / 星云 / 符文石碑） -->
+    <div class="bg-photo"></div>
+    <!-- 暗色遮罩：压暗图片保证前景文字可读，边缘更深以聚焦中央内容 -->
+    <div class="bg-veil"></div>
+    <canvas ref="cv" class="fog"></canvas>
+  </div>
 </template>
 
 <style scoped>
-.fog {
+.bg-stack {
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
+}
+.bg-photo {
+  position: absolute;
+  inset: 0;
+  background: url('/bg-realm.png') center / cover no-repeat;
+}
+.bg-veil {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(1200px 620px at 50% 42%, rgba(4, 5, 13, 0), rgba(4, 5, 13, .52) 70%),
+    linear-gradient(180deg, rgba(4, 5, 13, .38), rgba(4, 5, 13, .46) 55%, rgba(4, 5, 13, .72));
+}
+.fog {
+  position: absolute;
+  inset: 0;
 }
 </style>

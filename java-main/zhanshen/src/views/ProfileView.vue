@@ -98,11 +98,12 @@ async function saveProfile() {
   savingProfile.value = true
   try {
     const { data } = await updateProfile({
-      nickname: profile.nickname.trim() || null,
-      avatar: profile.avatar.trim() || null,
-      phone: profile.phone.trim() || null,
-      bio: profile.bio.trim() || null,
-      email: profile.email.trim() || null,
+      // 传空串表示“清空该字段”，后端会写入 NULL，避免填过就永远清不掉
+      nickname: profile.nickname.trim(),
+      avatar: profile.avatar.trim(),
+      phone: profile.phone.trim(),
+      bio: profile.bio.trim(),
+      email: profile.email.trim(),
       realm: profile.realm || null
     })
     if (data?.code === 0) {
