@@ -5,6 +5,7 @@ import FogBackground from '../components/FogBackground.vue'
 import DuelArena from '../components/game/DuelArena.vue'
 import QuizBattle from '../components/game/QuizBattle.vue'
 import ReactionTrial from '../components/game/ReactionTrial.vue'
+import RealmTrial from '../components/game/RealmTrial.vue'
 import { getTheme } from '../game-theme'
 
 const router = useRouter()
@@ -31,7 +32,8 @@ function goHome() { router.push('/home') }
 const tabs = [
   { key: 'duel', label: '对决擂台' },
   { key: 'quiz', label: '禁墟答题' },
-  { key: 'reaction', label: '反应试炼' }
+  { key: 'reaction', label: '反应试炼' },
+  { key: 'stage', label: '禁墟试炼' }
 ]
 
 onMounted(() => {})
@@ -64,7 +66,8 @@ onMounted(() => {})
     <section class="content">
       <DuelArena v-if="tab === 'duel'" :theme="theme" />
       <QuizBattle v-else-if="tab === 'quiz'" :theme="theme" />
-      <ReactionTrial v-else :theme="theme" />
+      <ReactionTrial v-else-if="tab === 'reaction'" :theme="theme" />
+      <RealmTrial v-else :theme="theme" />
     </section>
   </main>
 </template>

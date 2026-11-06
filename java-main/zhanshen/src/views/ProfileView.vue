@@ -3,6 +3,7 @@ import { onMounted, reactive, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth, clearSession } from '../store/auth'
 import { me, updateProfile, changePassword } from '../api/auth'
+import { stageProgress } from '../api/game'
 
 const router = useRouter()
 const { user, setSession } = useAuth()
@@ -37,6 +38,18 @@ const pwd = reactive({
 
 const savingProfile = ref(false)
 const savingPwd = ref(false)
+
+// 境界突破进度（神域成长体系）：在个人中心直接体现用户闯关成长
+const stage = ref(null)
+async function loadStage() {
+  try {
+    const { data } = await stageProgress()
+    if (data?.code === 0) stage.value = data.data
+  } catch (e) {}
+}
+function goTrial() {
+  router.push({ path: '/games', query: { tab: 'stage' } })
+}
 
 // 头像加载失败时回退为首字母（避免破图）
 const avatarErr = ref(false)
@@ -88,7 +101,10 @@ async function loadProfile() {
   }
 }
 
-onMounted(loadProfile)
+onMounted(() => {
+  loadProfile()
+  loadStage()
+})
 
 // 保存资料
 async function saveProfile() {
@@ -182,6 +198,21 @@ function goHome() {
         <div class="idrealm">境界 · {{ profile.realm || user?.realm || '—' }}</div>
         <div class="idperm" :class="user?.permission === 0 ? 'admin' : 'normal'">
           {{ user?.permission === 0 ? '执政官（管理员）' : '普通守夜人' }}
+        </div>
+
+        <div class="realm-box" v-if="stage">
+          <div class="rb-head">
+            <span>境界突破</span>
+            <span class="rb-pct">{{ stage.progressPercent }}%</span>
+          </div>
+          <div class="rb-name">{{ stage.currentRealmName }}<small v-if="stage.allCleared">· 已登临神明</small></div>
+          <div class="rb-bar"><div class="rb-fill" :style="{ width: stage.progressPercent + '%' }"></div></div>
+          <div class="rb-meta">
+            <span>突破 {{ stage.clears }}</span>
+            <span>经验 {{ stage.exp }}</span>
+            <span>连对 {{ stage.bestStreak }}</span>
+          </div>
+          <button class="rb-go" @click="goTrial">前往试炼 →</button>
         </div>
       </aside>
 
@@ -338,6 +369,21 @@ function goHome() {
 }
 .idperm.admin { color: var(--gold); border: 1px solid rgba(245,210,122,.35); background: rgba(245,210,122,.08); }
 .idperm.normal { color: var(--cyan); border: 1px solid rgba(46,230,255,.3); background: rgba(46,230,255,.07); }
+
+/* 境界突破成长卡 */
+.realm-box { margin-top: 18px; padding: 14px 12px; border-radius: 14px; text-align: left;
+  border: 1px solid rgba(177,77,255,.28); background: rgba(177,77,255,.07); }
+.rb-head { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; color: var(--ink-dim); letter-spacing: .08em; }
+.rb-head .rb-pct { color: var(--violet); font-weight: 800; }
+.rb-name { margin: 8px 0 10px; font-size: 16px; font-weight: 800; color: #fff; letter-spacing: .05em; }
+.rb-name small { font-size: 11px; color: var(--gold); font-weight: 600; margin-left: 4px; }
+.rb-bar { height: 7px; border-radius: 999px; background: rgba(8,10,24,.6); overflow: hidden; }
+.rb-fill { height: 100%; border-radius: 999px;
+  background: linear-gradient(100deg, var(--cyan), var(--violet), var(--pink)); box-shadow: var(--neon); transition: width .6s ease; }
+.rb-meta { display: flex; justify-content: space-between; margin: 10px 0 12px; color: var(--ink-dim); font-size: 11.5px; }
+.rb-go { width: 100%; border: 1px solid rgba(46,230,255,.3); background: rgba(46,230,255,.06); color: var(--cyan);
+  padding: 9px; border-radius: 10px; cursor: pointer; font-family: inherit; font-size: 13px; letter-spacing: .06em; transition: .2s; }
+.rb-go:hover { background: rgba(46,230,255,.14); color: #fff; }
 
 /* 面板 */
 .panels { display: flex; flex-direction: column; gap: 22px; }

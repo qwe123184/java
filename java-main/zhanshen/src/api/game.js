@@ -45,3 +45,17 @@ export function reactionSubmit(ms) {
 export function reactionLeaderboard() {
   return api.get('/game/reaction/leaderboard')
 }
+
+// 禁墟试炼 · 境界突破（单人 PvE 闯关）
+export function stageProgress() {
+  return api.get('/game/stage/progress')
+}
+export function stageStart() {
+  return api.post('/game/stage/start')
+}
+export function stageSubmit(realmKey, answers) {
+  return api.post('/game/stage/submit', { realmKey, answers })
+}
+export function stageLeaderboard() {
+  return api.get('/game/stage/leaderboard')
+}

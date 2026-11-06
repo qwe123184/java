@@ -178,3 +178,18 @@ CREATE TABLE IF NOT EXISTS `zhan_shen`.`t_quiz_answer` (
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_general_ci;
+
+-- 用户闯关进度（禁墟试炼 · 境界突破）。与 t_user 一对一，主键 user_id。
+-- current_realm：当前正在挑战的境界 key（尚未突破）；max_realm：已突破到的最高境界 key。
+CREATE TABLE IF NOT EXISTS `zhan_shen`.`t_user_stage` (
+  `user_id`       BIGINT       NOT NULL,
+  `current_realm` VARCHAR(20)  NOT NULL DEFAULT 'fanchen' COMMENT '当前挑战境界：fanchen/chi/zhan/chuan/hai/wuliang/kelain/shenming',
+  `max_realm`     VARCHAR(20)  DEFAULT NULL COMMENT '已突破最高境界（NULL=尚无一境突破）',
+  `clears`        INT          NOT NULL DEFAULT 0 COMMENT '累计突破次数',
+  `exp`           INT          NOT NULL DEFAULT 0 COMMENT '经验值（每答对一题 +10）',
+  `best_streak`   INT          NOT NULL DEFAULT 0 COMMENT '单次闯关最高连对',
+  `updated_at`    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`user_id`)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_general_ci;

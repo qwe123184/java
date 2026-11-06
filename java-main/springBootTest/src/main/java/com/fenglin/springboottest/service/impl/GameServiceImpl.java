@@ -28,6 +28,7 @@ public class GameServiceImpl implements GameService {
     @Autowired private QuizRoomMapper quizRoomMapper;
     @Autowired private QuizAnswerMapper quizAnswerMapper;
     @Autowired private UserGameStatMapper userGameStatMapper;
+    @Autowired private UserStageMapper userStageMapper;
     @Autowired private UserMapper userMapper;
 
     // ===================== 工具方法 =====================
@@ -517,8 +518,187 @@ public class GameServiceImpl implements GameService {
             LeaderboardVO vo = new LeaderboardVO();
             vo.setScore(s.getReactionBestMs());
             vo.setSub(s.getReactionPlays() + "次试炼");
-            return vo;
-        }));
+                return vo;
+            }));
+    }
+
+    // ===================== 禁墟试炼 · 境界突破（单人 PvE 闯关） =====================
+
+    private UserStage ensureStage(Long userId) {
+        UserStage s = userStageMapper.selectById(userId);
+        if (s == null) {
+            s = new UserStage(userId);
+            userStageMapper.insert(s);
+        }
+        return s;
+    }
+
+    @Override
+    public Result<StageProgressVO> stageProgress(Long userId) {
+        UserStage st = ensureStage(userId);
+        RealmStageConfig.Realm cur = RealmStageConfig.byKey(st.getCurrentRealm());
+        if (cur == null) cur = RealmStageConfig.REALMS.get(0);
+        int maxIdx = st.getMaxRealm() == null ? -1 : RealmStageConfig.indexOf(st.getMaxRealm());
+
+        StageProgressVO vo = new StageProgressVO();
+        vo.setCurrentRealmKey(cur.key);
+        vo.setCurrentRealmName(cur.name);
+        vo.setCurrentRealmIndex(RealmStageConfig.indexOf(cur.key));
+        vo.setTotalRealms(RealmStageConfig.REALMS.size());
+        vo.setCurrentQuestions(cur.questions);
+        vo.setPassThreshold(RealmStageConfig.passThreshold(cur.questions));
+        vo.setRealmDesc(cur.desc);
+        vo.setMaxRealmKey(st.getMaxRealm());
+        vo.setMaxRealmName(RealmStageConfig.displayName(st.getMaxRealm()));
+        vo.setAllCleared(st.getMaxRealm() != null && "shenming".equalsIgnoreCase(st.getMaxRealm()));
+        vo.setClears(st.getClears());
+        vo.setExp(st.getExp());
+        vo.setBestStreak(st.getBestStreak());
+        vo.setProgressPercent(maxIdx < 0 ? 0 : (int) Math.round((maxIdx + 1.0) / RealmStageConfig.REALMS.size() * 100));
+        return Result.success(vo);
+    }
+
+    @Override
+    public Result<StageStartVO> stageStart(Long userId) {
+        UserStage st = ensureStage(userId);
+        RealmStageConfig.Realm cur = RealmStageConfig.byKey(st.getCurrentRealm());
+        if (cur == null) return Result.fail("已登临神明之境，试炼圆满。");
+
+        List<Quiz> pool = quizMapper.selectList(new LambdaQueryWrapper<Quiz>().eq(Quiz::getStatus, 1));
+        if (pool.isEmpty()) return Result.fail("题库尚未录入，暂无法开启试炼。");
+
+        Collections.shuffle(pool, new Random());
+        int n = Math.min(cur.questions, pool.size());
+        List<QuizQuestionVO> items = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            Quiz q = pool.get(i);
+            QuizQuestionVO v = new QuizQuestionVO();
+            v.setId(q.getId());
+            v.setQuestion(q.getQuestion());
+            v.setOptionA(q.getOptionA());
+            v.setOptionB(q.getOptionB());
+            v.setOptionC(q.getOptionC());
+            v.setOptionD(q.getOptionD());
+            items.add(v);
+        }
+
+        boolean already = st.getMaxRealm() != null
+                && RealmStageConfig.indexOf(st.getMaxRealm()) >= RealmStageConfig.indexOf(cur.key);
+        StageStartVO vo = new StageStartVO();
+        vo.setRealmKey(cur.key);
+        vo.setRealmName(cur.name);
+        vo.setQuestions(n);
+        vo.setPassThreshold(RealmStageConfig.passThreshold(n));
+        vo.setDesc(cur.desc);
+        vo.setItems(items);
+        vo.setAlreadyCleared(already);
+        return Result.success("「" + cur.name + "」试炼开启，答对 " + vo.getPassThreshold() + "/" + n + " 题即可突破。", vo);
+    }
+
+    @Override
+    public Result<StageSubmitVO> stageSubmit(Long userId, StageSubmitRequest req) {
+        if (req == null || req.getAnswers() == null || req.getAnswers().isEmpty())
+            return Result.fail("未收到作答内容。");
+
+        UserStage st = ensureStage(userId);
+        RealmStageConfig.Realm cur = RealmStageConfig.byKey(st.getCurrentRealm());
+        if (cur == null) return Result.fail("当前无可挑战的境界。");
+        if (req.getRealmKey() != null && !req.getRealmKey().equalsIgnoreCase(cur.key))
+            return Result.fail("试炼境界不一致，请重新开启当前试炼。");
+
+        Map<Long, String> answers = new HashMap<>();
+        for (StageSubmitRequest.StageAnswer a : req.getAnswers()) {
+            if (a.getQuestionId() == null) continue;
+            Quiz q = quizMapper.selectById(a.getQuestionId());
+            if (q != null && q.getAnswer() != null) answers.put(q.getId(), q.getAnswer().toUpperCase());
+        }
+
+        int correct = 0, streak = 0, best = 0;
+        for (StageSubmitRequest.StageAnswer a : req.getAnswers()) {
+            if (a.getQuestionId() == null || a.getChoice() == null) continue;
+            String correctAnswer = answers.get(a.getQuestionId());
+            if (correctAnswer != null && correctAnswer.equals(a.getChoice().toUpperCase())) {
+                correct++;
+                streak++;
+                if (streak > best) best = streak;
+            } else {
+                streak = 0;
+            }
+        }
+
+        int total = req.getAnswers().size();
+        int threshold = RealmStageConfig.passThreshold(Math.min(cur.questions, total));
+        boolean passed = correct >= threshold;
+
+        StageSubmitVO vo = new StageSubmitVO();
+        vo.setRealmKey(cur.key);
+        vo.setRealmName(cur.name);
+        vo.setCorrectCount(correct);
+        vo.setTotal(total);
+        vo.setPassThreshold(threshold);
+        vo.setBreakthroughValue(correct * 20);
+
+        st.setExp(st.getExp() + correct * 10);
+        if (best > st.getBestStreak()) st.setBestStreak(best);
+
+        if (passed) {
+            boolean wasMax = st.getMaxRealm() != null
+                    && RealmStageConfig.indexOf(st.getMaxRealm()) >= RealmStageConfig.indexOf(cur.key);
+            if (!wasMax) st.setMaxRealm(cur.key);
+            st.setClears(st.getClears() + 1);
+
+            RealmStageConfig.Realm nx = RealmStageConfig.next(cur.key);
+            if (nx != null) {
+                st.setCurrentRealm(nx.key);
+                vo.setNextRealmKey(nx.key);
+                vo.setNextRealmName(nx.name);
+                vo.setMessage("突破成功！「" + cur.name + "」已证，前方是「" + nx.name + "」之境。");
+            } else {
+                st.setCurrentRealm(cur.key);
+                vo.setAllCleared(true);
+                vo.setMessage("神明之境已成！你立于万万人前，试炼圆满。");
+            }
+            vo.setPassed(true);
+        } else {
+            vo.setPassed(false);
+            vo.setMessage("突破未竟，需在「" + cur.name + "」试炼中答对至少 " + threshold + " 题。凝心神，重来一次。");
+        }
+
+        st.setUpdatedAt(LocalDateTime.now());
+        userStageMapper.updateById(st);
+
+        vo.setClears(st.getClears());
+        vo.setExp(st.getExp());
+        vo.setBestStreak(st.getBestStreak());
+        return Result.success(vo.getMessage(), vo);
+    }
+
+    @Override
+    public Result<List<LeaderboardVO>> stageLeaderboard() {
+        List<UserStage> all = userStageMapper.selectList(null);
+        Comparator<UserStage> byRealm = Comparator.comparingInt(
+                (UserStage s) -> RealmStageConfig.indexOf(s.getMaxRealm())).reversed();
+        Comparator<UserStage> byClears = Comparator.comparingInt(UserStage::getClears).reversed();
+        List<UserStage> list = all.stream()
+                .sorted(byRealm.thenComparing(byClears))
+                .limit(20)
+                .collect(Collectors.toList());
+
+        List<LeaderboardVO> out = new ArrayList<>();
+        int rank = 1;
+        for (UserStage s : list) {
+            LeaderboardVO vo = new LeaderboardVO();
+            vo.setScore(RealmStageConfig.indexOf(s.getMaxRealm()) + 1);
+            vo.setSub("突破 " + s.getClears() + " 次 · " + s.getExp() + " 经验");
+            User u = userMapper.selectById(s.getUserId());
+            vo.setRank(rank++);
+            vo.setUserId(s.getUserId());
+            vo.setUsername(u == null ? "" : u.getUsername());
+            vo.setNickname(u == null ? "" : (StringUtils.hasText(u.getNickname()) ? u.getNickname() : u.getUsername()));
+            vo.setAvatar(u == null ? null : u.getAvatar());
+            out.add(vo);
+        }
+        return Result.success(out);
     }
 
     // ===================== 排行榜通用装饰 =====================

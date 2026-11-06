@@ -92,4 +92,25 @@ public class GameController {
     public Result<List<LeaderboardVO>> reactionLeaderboard() {
         return gameService.reactionLeaderboard();
     }
+
+    // ===== 禁墟试炼 · 境界突破（单人 PvE 闯关） =====
+    @GetMapping("/stage/progress")
+    public Result<StageProgressVO> stageProgress(@RequestAttribute Long userId) {
+        return gameService.stageProgress(userId);
+    }
+
+    @PostMapping("/stage/start")
+    public Result<StageStartVO> stageStart(@RequestAttribute Long userId) {
+        return gameService.stageStart(userId);
+    }
+
+    @PostMapping("/stage/submit")
+    public Result<StageSubmitVO> stageSubmit(@RequestBody StageSubmitRequest req, @RequestAttribute Long userId) {
+        return gameService.stageSubmit(userId, req);
+    }
+
+    @GetMapping("/stage/leaderboard")
+    public Result<List<LeaderboardVO>> stageLeaderboard() {
+        return gameService.stageLeaderboard();
+    }
 }

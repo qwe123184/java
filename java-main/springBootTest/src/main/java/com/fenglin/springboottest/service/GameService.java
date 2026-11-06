@@ -9,14 +9,25 @@ import com.fenglin.springboottest.common.QuizCreateRequest;
 import com.fenglin.springboottest.common.QuizRoomVO;
 import com.fenglin.springboottest.common.ReactionSubmitRequest;
 import com.fenglin.springboottest.common.Result;
+import com.fenglin.springboottest.common.StageProgressVO;
+import com.fenglin.springboottest.common.StageStartVO;
+import com.fenglin.springboottest.common.StageSubmitRequest;
+import com.fenglin.springboottest.common.StageSubmitVO;
 
 import java.util.List;
 import java.util.Map;
 
 /**
  * 神域对决中心：对决擂台（PvP）/ 禁墟答题（PvP）/ 反应试炼（跨用户排行）
+ * / 禁墟试炼 · 境界突破（单人 PvE 闯关）
  */
 public interface GameService {
+
+    // ===== 禁墟试炼 · 境界突破（单人 PvE 闯关） =====
+    Result<StageProgressVO> stageProgress(Long userId);
+    Result<StageStartVO> stageStart(Long userId);
+    Result<StageSubmitVO> stageSubmit(Long userId, StageSubmitRequest req);
+    Result<List<LeaderboardVO>> stageLeaderboard();
 
     // ===== 对决擂台 =====
     Result<DuelRoomVO> createDuel(Long userId, DuelCreateRequest req);
