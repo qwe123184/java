@@ -49,10 +49,11 @@ if not defined JAVA_HOME (
 set "PATH=%JAVA_HOME%\bin;%PATH%"
 echo [OK] JAVA_HOME = %JAVA_HOME%
 
-REM ---- 1. Maven (search, else download 3.9.9) ----
+REM ---- 1. Maven (search, else download 3.9.9). Every candidate is
+REM         validated with "mvn -v" so a corrupt install is skipped. ----
 set "MVN_CMD="
-where mvn.cmd >nul 2>&1 && set "MVN_CMD=mvn.cmd"
-if not defined MVN_CMD where mvn >nul 2>&1 && set "MVN_CMD=mvn"
+for /f "delims=" %%p in ('where mvn.cmd 2^>nul') do if not defined MVN_CMD call :TEST_MVN "%%p"
+if not defined MVN_CMD for /f "delims=" %%p in ('where mvn 2^>nul') do if not defined MVN_CMD call :TEST_MVN "%%p"
 if not defined MVN_CMD call :FIND_MVN "%BASE%\tools\maven"
 if not defined MVN_CMD call :FIND_MVN "%USERPROFILE%\.m2\wrapper\dists"
 if not defined MVN_CMD call :FIND_MVN "%USERPROFILE%\.m2\maven"
@@ -310,9 +311,18 @@ goto :EOF
 
 REM ==================== helpers ====================
 REM Find mvn.cmd under a directory tree (robust replacement for nested FOR /D loops)
+:TEST_MVN
+call %1 -v >nul 2>&1
+if errorlevel 1 (
+  echo [INFO] Skipping broken Maven install: %~1
+  goto :EOF
+)
+set "MVN_CMD=%~1"
+goto :EOF
+
 :FIND_MVN
 if not exist "%~1" goto :EOF
-for /f "delims=" %%p in ('dir /b /s "%~1\mvn.cmd" 2^>nul') do if not defined MVN_CMD set "MVN_CMD=%%p"
+for /f "delims=" %%p in ('dir /b /s "%~1\mvn.cmd" 2^>nul') do if not defined MVN_CMD call :TEST_MVN "%%p"
 goto :EOF
 
 REM ==================== status ====================
