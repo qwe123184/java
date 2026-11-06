@@ -30,17 +30,17 @@ if not exist "%APP_HOME%\package.json" (
 )
 echo [%date% %time%] package.json OK >> "%LOG%"
 
-REM ---- avoid localhost going through HTTP proxy ----
-set "no_proxy=localhost,127.0.0.1"
-set "NO_PROXY=localhost,127.0.0.1"
+REM ---- avoid localhost / LAN IP going through HTTP proxy ----
+set "no_proxy=localhost,127.0.0.1,192.168.68.44"
+set "NO_PROXY=localhost,127.0.0.1,192.168.68.44"
 
-REM ---- Node.js: prefer the managed WorkBuddy node (tested), else system ----
-set "NODE_EXE=%USERPROFILE%\.workbuddy\binaries\node\versions\22.22.2-3\node.exe"
-if exist "!NODE_EXE!" (
+REM ---- Node.js: prefer the managed WorkBuddy node (auto-detect any version), else system ----
+set "NODE_EXE="
+for /d %%d in ("%USERPROFILE%\.workbuddy\binaries\node\versions\*") do if exist "%%d\node.exe" if not defined NODE_EXE set "NODE_EXE=%%d\node.exe"
+if defined NODE_EXE (
   echo [OK] Using managed Node: !NODE_EXE!
   echo [%date% %time%] node = !NODE_EXE! ^(managed^) >> "%LOG%"
 ) else (
-  set "NODE_EXE="
   for /f "delims=" %%p in ('where node 2^>nul') do if not defined NODE_EXE set "NODE_EXE=%%p"
   if not defined NODE_EXE (
     echo [ERROR] Node.js not found. Install from https://nodejs.org

@@ -10,10 +10,11 @@ export default defineConfig({
     // 否则启动脚本提示的地址与实际监听端口会不一致。
     strictPort: true,
     open: false,
-    // 前端通过 /api 代理访问后端（springBootTest，端口 8081）
+    // 前端通过 /api 代理访问后端（springBootTest，端口 8081），
+    // 代理目标使用本机局域网 IP（192.168.68.44），便于同一局域网其它设备访问。
     proxy: {
       '/api': {
-        target: 'http://localhost:8081',
+        target: 'http://192.168.68.44:8081',
         changeOrigin: true
       }
     }

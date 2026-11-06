@@ -9,8 +9,8 @@ REM  Run as Administrator so "net start MySQL" works.
 REM ============================================================
 
 REM ---- avoid localhost going through HTTP proxy ----
-set "no_proxy=localhost,127.0.0.1"
-set "NO_PROXY=localhost,127.0.0.1"
+set "no_proxy=localhost,127.0.0.1,192.168.68.44"
+set "NO_PROXY=localhost,127.0.0.1,192.168.68.44"
 
 set "BASE=%~dp0"
 if "%BASE:~-1%"=="\" set "BASE=%BASE:~0,-1%"
@@ -196,9 +196,9 @@ goto BE_WAIT
 :BE_READY
 echo.
 echo ============================================================
-echo   [OK] Backend up: http://localhost:%PORT%/
-echo    - Swagger : http://localhost:%PORT%/swagger-ui.html
-echo    - Health  : http://localhost:%PORT%/actuator/health
+echo   [OK] Backend up: http://192.168.68.44:%PORT%/
+echo    - Swagger : http://192.168.68.44:%PORT%/swagger-ui.html
+echo    - Health  : http://192.168.68.44:%PORT%/actuator/health
 echo    - Console : minimized window "ZhanShen-Backend-%PORT%"
 echo ============================================================
 goto BACKEND_DONE
@@ -295,15 +295,15 @@ goto FE_WAIT
 :FE_READY
 echo.
 echo ============================================================
-echo   [OK] Frontend up: http://localhost:%PORT%/
-echo    - API proxy : /api -^> http://localhost:%BACKEND_PORT%
+echo   [OK] Frontend up: http://192.168.68.44:%PORT%/
+echo    - API proxy : /api -^> http://192.168.68.44:%BACKEND_PORT%
 echo    - Console   : minimized window "ZhanShen-Frontend-%PORT%"
 echo ============================================================
 
 :FE_OPEN
 set "CHROME_EXE=C:\Program Files\Google\Chrome\Application\chrome.exe"
 if not exist "%CHROME_EXE%" set "CHROME_EXE=C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
-if exist "%CHROME_EXE%" (start "" "%CHROME_EXE%" "http://localhost:%PORT%/") else (start "" "http://localhost:%PORT%/")
+if exist "%CHROME_EXE%" (start "" "%CHROME_EXE%" "http://192.168.68.44:%PORT%/") else (start "" "http://192.168.68.44:%PORT%/")
 goto FRONTEND_DONE
 
 :FRONTEND_DONE
@@ -332,10 +332,10 @@ set "BE_PORT=8081"
 set "DB_PORT=3306"
 echo ---[ Frontend  port %FE_PORT% ]---
 netstat -ano | findstr /c:":%FE_PORT% " | findstr /i "LISTENING" >nul
-if errorlevel 1 (echo   listening: NO) else (echo   listening: YES  http://localhost:%FE_PORT%/)
+if errorlevel 1 (echo   listening: NO) else (echo   listening: YES  http://192.168.68.44:%FE_PORT%/)
 echo ---[ Backend   port %BE_PORT% ]---
 netstat -ano | findstr /c:":%BE_PORT% " | findstr /i "LISTENING" >nul
-if errorlevel 1 (echo   listening: NO) else (echo   listening: YES  http://localhost:%BE_PORT%/  Swagger /swagger-ui.html)
+if errorlevel 1 (echo   listening: NO) else (echo   listening: YES  http://192.168.68.44:%BE_PORT%/  Swagger /swagger-ui.html)
 echo ---[ MySQL    port %DB_PORT% ]---
 netstat -ano | findstr /c:":%DB_PORT% " | findstr /i "LISTENING" >nul
 if errorlevel 1 (echo   listening: NO  -^> backend will fail to connect) else (echo   listening: YES)

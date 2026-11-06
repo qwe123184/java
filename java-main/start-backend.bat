@@ -43,9 +43,9 @@ set "SERVER__PORT="
 set "SERVER__HOST="
 set "SERVER_PORT="
 
-REM ---- avoid localhost going through HTTP proxy ----
-set "no_proxy=localhost,127.0.0.1"
-set "NO_PROXY=localhost,127.0.0.1"
+REM ---- avoid localhost / LAN IP going through HTTP proxy ----
+set "no_proxy=localhost,127.0.0.1,192.168.68.44"
+set "NO_PROXY=localhost,127.0.0.1,192.168.68.44"
 
 netstat -ano | findstr /c:":%PORT% " | findstr /i "LISTENING" >nul
 if not errorlevel 1 (
