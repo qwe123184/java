@@ -18,6 +18,11 @@ function goAdmin() {
   router.push('/admin')
 }
 
+// 进入神域对决中心（用户间小游戏）
+function goGames() {
+  router.push('/games')
+}
+
 // 进入个人中心（资料 / 修改密码）
 function goProfile() {
   router.push('/profile')
@@ -423,6 +428,10 @@ function closeDetail() {
         <span class="gear">⚙</span> 后台管理
       </button>
 
+      <button class="game-entry" @click="goGames" title="进入神域对决中心">
+        <span class="sword">⚔</span> 对决中心
+      </button>
+
       <div class="user">
         <span class="avatar">
           <img v-if="navAvatar && !navAvatarErr" :src="navAvatar" alt="avatar" @error="navAvatarErr = true" />
@@ -708,6 +717,25 @@ function closeDetail() {
   box-shadow: 0 0 22px rgba(245,210,122,.4), 0 0 14px rgba(255,77,141,.3);
 }
 .admin-entry:active { transform: translateY(0); }
+
+/* 对决中心入口按钮 */
+.game-entry {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 16px; border-radius: 10px; cursor: pointer;
+  font-family: inherit; font-size: 13.5px; letter-spacing: .08em; white-space: nowrap;
+  color: var(--cyan);
+  background: linear-gradient(100deg, rgba(46,230,255,.14), rgba(255,77,141,.12));
+  border: 1px solid rgba(46,230,255,.4);
+  box-shadow: 0 0 14px rgba(46,230,255,.18);
+  transition: .2s;
+}
+.game-entry .sword { font-size: 15px; line-height: 1; }
+.game-entry:hover {
+  color: #fff; transform: translateY(-1px);
+  border-color: var(--pink);
+  box-shadow: 0 0 22px rgba(46,230,255,.4), 0 0 14px rgba(255,77,141,.3);
+}
+.game-entry:active { transform: translateY(0); }
 
 .user { display: flex; align-items: center; gap: 10px; white-space: nowrap; font-size: 13.5px; color: var(--ink-dim); }
 .avatar {

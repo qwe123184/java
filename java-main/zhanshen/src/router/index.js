@@ -5,10 +5,12 @@ import HomeView from '../views/HomeView.vue'
 import ProfileView from '../views/ProfileView.vue'
 import AdminLoginView from '../views/AdminLoginView.vue'
 import AdminView from '../views/AdminView.vue'
+import GamesView from '../views/GamesView.vue'
 
 const routes = [
   { path: '/', name: 'auth', component: AuthView },
   { path: '/home', name: 'home', component: HomeView, meta: { requiresAuth: true } },
+  { path: '/games', name: 'games', component: GamesView, meta: { requiresAuth: true } },
   { path: '/profile', name: 'profile', component: ProfileView, meta: { requiresAuth: true } },
   { path: '/admin/login', name: 'admin-login', component: AdminLoginView },
   { path: '/admin', name: 'admin', component: AdminView, meta: { requiresAuth: true, requiresAdmin: true } }
