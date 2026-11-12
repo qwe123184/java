@@ -613,17 +613,28 @@ public class GameServiceImpl implements GameService {
             if (q != null && q.getAnswer() != null) answers.put(q.getId(), q.getAnswer().toUpperCase());
         }
 
+        // 逐题解析：记录玩家选择与正确答案，供结果页复盘
+        List<StageSubmitVO.AnswerReview> review = new ArrayList<>();
+
         int correct = 0, streak = 0, best = 0;
         for (StageSubmitRequest.StageAnswer a : req.getAnswers()) {
             if (a.getQuestionId() == null || a.getChoice() == null) continue;
             String correctAnswer = answers.get(a.getQuestionId());
-            if (correctAnswer != null && correctAnswer.equals(a.getChoice().toUpperCase())) {
+            boolean isRight = correctAnswer != null && correctAnswer.equals(a.getChoice().toUpperCase());
+            if (isRight) {
                 correct++;
                 streak++;
                 if (streak > best) best = streak;
             } else {
                 streak = 0;
             }
+            Quiz q = quizMapper.selectById(a.getQuestionId());
+            review.add(new StageSubmitVO.AnswerReview(
+                    a.getQuestionId(),
+                    q == null ? "未知题目" : q.getQuestion(),
+                    a.getChoice().toUpperCase(),
+                    correctAnswer,
+                    isRight));
         }
 
         int total = req.getAnswers().size();
@@ -637,6 +648,7 @@ public class GameServiceImpl implements GameService {
         vo.setTotal(total);
         vo.setPassThreshold(threshold);
         vo.setBreakthroughValue(correct * 20);
+        vo.setReview(review);
 
         st.setExp(st.getExp() + correct * 10);
         if (best > st.getBestStreak()) st.setBestStreak(best);

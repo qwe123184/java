@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { getAccessToken, clearSession, applyTokens } from '../store/auth'
+import { getAccessToken, getRefreshToken, clearSession, applyTokens } from '../store/auth'
 
 // 统一与后端 springBootTest 通信的 axios 实例
 const api = axios.create({ baseURL: '/api', timeout: 15000 })
@@ -11,16 +11,59 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// 响应拦截：401（令牌失效）时清理会话，并按当前所在模块回对应登录页
+// 静默刷新令牌：用 refreshToken 换发新的令牌对（独立实例，避免递归拦截）
+let refreshing = null
+function refreshTokens() {
+  if (!refreshing) {
+    const rt = getRefreshToken()
+    if (!rt) return null
+    refreshing = axios
+      .create({ baseURL: '/api', timeout: 15000 })
+      .post('/user/refresh', { refreshToken: rt })
+      .then((res) => {
+        const d = res.data?.data
+        if (res.data?.code === 0 && d?.accessToken) {
+          applyTokens({ accessToken: d.accessToken, refreshToken: d.refreshToken })
+          return d.accessToken
+        }
+        throw new Error('refresh failed')
+      })
+      .finally(() => { refreshing = null })
+  }
+  return refreshing
+}
+
+function redirectToAuth() {
+  clearSession()
+  const onAdmin = location.hash.startsWith('#/admin')
+  location.hash = onAdmin ? '#/admin/login' : '#/'
+}
+
+// 响应拦截：401（访问令牌过期）时先用 refreshToken 静默续期并重放原请求；
+// 续期失败才清理会话并回登录页。避免答题/对局中途被登出导致进度丢失。
 api.interceptors.response.use(
   (res) => res,
-  (error) => {
-    if (error.response?.status === 401) {
-      clearSession()
-      // 在后台模块则回后台登录页，否则回首页登录页
-      const onAdmin = location.hash.startsWith('#/admin')
-      location.hash = onAdmin ? '#/admin/login' : '#/'
+  async (error) => {
+    const config = error.config
+    if (
+      error.response?.status === 401 &&
+      config &&
+      !config.__retried &&
+      !String(config.url || '').includes('/user/refresh') &&
+      getRefreshToken()
+    ) {
+      try {
+        const newToken = await refreshTokens()
+        if (newToken) {
+          config.__retried = true
+          config.headers.Authorization = `Bearer ${newToken}`
+          return api.request(config)
+        }
+      } catch (e) {
+        // 续期失败，走下方统一登出
+      }
     }
+    if (error.response?.status === 401) redirectToAuth()
     return Promise.reject(error)
   }
 )
@@ -46,9 +89,7 @@ export function adminProfile() {
   return api.get('/admin/me')
 }
 
-// 以刷新令牌换发新令牌对
-// 注意：当前后端 AuthInterceptor 要求 /api/** 除 login/register 外都需有效 accessToken，
-// 因此 refresh 端点本身也需要 accessToken。待后端放开后可直接调用。
+// 以刷新令牌换发新令牌对（后端已放行 /user/refresh，无需携带 accessToken）
 export function refreshToken(refreshToken) {
   return api.post('/user/refresh', { refreshToken })
 }

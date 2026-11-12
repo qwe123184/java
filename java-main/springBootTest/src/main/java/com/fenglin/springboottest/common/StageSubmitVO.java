@@ -1,5 +1,7 @@
 package com.fenglin.springboottest.common;
 
+import java.util.List;
+
 /**
  * 提交试炼后的结果：判定是否突破、更新后的进度与叙事文案。
  */
@@ -19,6 +21,42 @@ public class StageSubmitVO {
     private int exp;
     private int bestStreak;
     private String message;
+
+    /** 每题作答解析（正确答案 vs 玩家选择），用于结果页复盘 */
+    private List<AnswerReview> review;
+
+    public static class AnswerReview {
+        private Long questionId;
+        private String question;
+        private String yourChoice;      // 玩家选择，未作答为 null
+        private String correctAnswer;   // 正确答案 A/B/C/D
+        private boolean correct;
+
+        public AnswerReview() {
+        }
+
+        public AnswerReview(Long questionId, String question, String yourChoice, String correctAnswer, boolean correct) {
+            this.questionId = questionId;
+            this.question = question;
+            this.yourChoice = yourChoice;
+            this.correctAnswer = correctAnswer;
+            this.correct = correct;
+        }
+
+        public Long getQuestionId() { return questionId; }
+        public void setQuestionId(Long questionId) { this.questionId = questionId; }
+        public String getQuestion() { return question; }
+        public void setQuestion(String question) { this.question = question; }
+        public String getYourChoice() { return yourChoice; }
+        public void setYourChoice(String yourChoice) { this.yourChoice = yourChoice; }
+        public String getCorrectAnswer() { return correctAnswer; }
+        public void setCorrectAnswer(String correctAnswer) { this.correctAnswer = correctAnswer; }
+        public boolean isCorrect() { return correct; }
+        public void setCorrect(boolean correct) { this.correct = correct; }
+    }
+
+    public List<AnswerReview> getReview() { return review; }
+    public void setReview(List<AnswerReview> review) { this.review = review; }
 
     public StageSubmitVO() {
     }

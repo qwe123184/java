@@ -23,6 +23,7 @@ const progress = ref(null)
 const items = ref([])
 const currentQ = ref(0)
 const picked = ref({})
+const realmKey = ref(null)      // 本次试炼的境界 key（来自 start 响应，避免依赖 progress 加载时序）
 const result = ref(null)
 const board = ref([])
 const loading = ref(false)
@@ -70,6 +71,7 @@ async function start() {
     const { data } = await stageStart()
     if (data?.code === 0) {
       items.value = data.data.items || []
+      realmKey.value = data.data.realmKey || progress.value?.currentRealmKey || null
       currentQ.value = 0
       picked.value = {}
       result.value = null
@@ -87,16 +89,34 @@ async function start() {
 function choose(choice) {
   if (!q.value) return
   picked.value = { ...picked.value, [q.value.id]: choice }
+  // 选完自动跳到下一道未作答的题（最后一题除外）
+  if (currentQ.value < items.value.length - 1) {
+    const next = items.value.findIndex((it, i) => i > currentQ.value && picked.value[it.id] == null)
+    if (next !== -1) currentQ.value = next
+  }
+}
+
+function goTo(i) {
+  if (i >= 0 && i < items.value.length) currentQ.value = i
+}
+function isAnswered(item) {
+  return picked.value[item.id] != null
 }
 
 async function submit() {
+  if (!items.value.length || !allAnswered.value) return
   loading.value = true
   try {
     const answers = Object.entries(picked.value).map(([questionId, choice]) => ({
       questionId: Number(questionId),
       choice
     }))
-    const { data } = await stageSubmit(progress.value.currentRealmKey, answers)
+    const key = realmKey.value || progress.value?.currentRealmKey
+    if (!key) {
+      showToast('试炼状态异常，请重新开启试炼')
+      return
+    }
+    const { data } = await stageSubmit(key, answers)
     if (data?.code === 0) {
       result.value = data.data
       phase.value = 'result'
@@ -167,15 +187,28 @@ onMounted(() => {
     <section v-if="phase === 'quiz'" class="panel quiz">
       <div class="qhead">
         <span class="qidx">第 {{ currentQ + 1 }} / {{ items.length }} 题</span>
-        <span class="qneed">需答对 {{ progress.passThreshold }} 题方可突破</span>
+        <span class="qneed">需答对 {{ progress?.passThreshold ?? '—' }} 题方可突破</span>
       </div>
-      <div class="qcard">
-        <h4>{{ q?.question }}</h4>
+      <div class="qnav" v-if="items.length > 1">
+        <button
+          v-for="(it, i) in items" :key="it.id" class="qdot"
+          :class="{ cur: i === currentQ, done: isAnswered(it) }"
+          :disabled="i === currentQ" @click="goTo(i)"
+          :title="'第 ' + (i + 1) + ' 题' + (isAnswered(it) ? '（已作答）' : '（未作答）')">
+          {{ i + 1 }}
+        </button>
+      </div>
+      <div class="qcard" v-if="q">
+        <h4>{{ q.question }}</h4>
         <div class="opts">
-          <button v-for="opt in ['A', 'B', 'C', 'D']" :key="opt" class="opt" :class="{ on: picked[q?.id] === opt }" @click="choose(opt)">
-            <span class="lab">{{ opt }}</span><span class="txt">{{ q && q['option' + opt] }}</span>
+          <button v-for="opt in ['A', 'B', 'C', 'D']" :key="opt" class="opt" :class="{ on: picked[q.id] === opt }" @click="choose(opt)">
+            <span class="lab">{{ opt }}</span><span class="txt">{{ q['option' + opt] }}</span>
           </button>
         </div>
+      </div>
+      <div class="qctrl">
+        <button class="ghost" :disabled="currentQ === 0" @click="goTo(currentQ - 1)">上一题</button>
+        <button class="ghost" :disabled="currentQ >= items.length - 1" @click="goTo(currentQ + 1)">下一题</button>
       </div>
       <button class="primary next" :disabled="!allAnswered || loading" @click="submit">
         {{ answeredCount === items.length ? '提交试炼' : '请答完全部题目（' + answeredCount + '/' + items.length + '）' }}
@@ -191,6 +224,18 @@ onMounted(() => {
         <span>答对 {{ result.correctCount }}/{{ result.total }}</span>
         <span>突破值 +{{ result.breakthroughValue }}</span>
         <span v-if="result.passed && result.nextRealmName">下一境：{{ result.nextRealmName }}</span>
+      </div>
+      <div v-if="result.review && result.review.length" class="review">
+        <div
+          v-for="r in result.review" :key="r.questionId"
+          class="rev" :class="{ ok: r.correct, bad: !r.correct }">
+          <span class="mark">{{ r.correct ? '✓' : '✗' }}</span>
+          <span class="q">{{ r.question }}</span>
+          <span class="ans">
+            你的选择：{{ r.yourChoice || '未作答' }}
+            <template v-if="!r.correct"> / 正确答案：{{ r.correctAnswer }}</template>
+          </span>
+        </div>
       </div>
       <div class="raction">
         <button class="primary" @click="again">{{ result.passed ? (result.allCleared ? '再战神明' : '继续下一境') : '重新试炼' }}</button>
@@ -269,6 +314,16 @@ onMounted(() => {
 
 .qhead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; color: var(--ink-dim); font-size: 13px; }
 .qhead .qneed { color: var(--g-accent3); }
+.qnav { display: flex; gap: 8px; margin-bottom: 14px; }
+.qdot { width: 32px; height: 32px; border-radius: 9px; border: 1px solid var(--glass-bd); background: rgba(8,10,24,.4);
+  color: var(--ink-dim); font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: .18s; }
+.qdot:hover { border-color: var(--g-accent); color: #fff; }
+.qdot.done { border-color: var(--g-accent); color: var(--g-accent); background: rgba(46,230,255,.1); }
+.qdot.cur { background: linear-gradient(135deg, var(--g-accent), var(--g-accent3)); color: #04050d; border-color: transparent; }
+.qdot:disabled { cursor: default; }
+.qctrl { display: flex; justify-content: space-between; gap: 10px; margin-top: 14px; }
+.qctrl .ghost { padding: 10px 18px; font-size: 13px; border-radius: 11px; }
+.qctrl .ghost:disabled { opacity: .35; cursor: not-allowed; }
 .qcard h4 { margin: 0 0 16px; font-size: 17px; color: #fff; line-height: 1.6; font-weight: 700; }
 .opts { display: flex; flex-direction: column; gap: 10px; }
 .opt { display: flex; align-items: center; gap: 12px; text-align: left; cursor: pointer; font-family: inherit; font-size: 14.5px;
@@ -285,6 +340,15 @@ onMounted(() => {
 .result .verdict p { margin: 0; color: var(--ink-dim); font-size: 13.5px; line-height: 1.7; }
 .rstats { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 14px 0 18px; }
 .rstats span { padding: 7px 14px; border-radius: 10px; background: rgba(8,10,24,.5); color: var(--g-accent); font-size: 13px; font-weight: 600; }
+.review { display: flex; flex-direction: column; gap: 8px; margin: 0 0 18px; }
+.rev { display: flex; align-items: baseline; gap: 10px; padding: 10px 14px; border-radius: 11px; background: rgba(8,10,24,.4); border: 1px solid var(--glass-bd); font-size: 13px; }
+.rev.ok { border-color: rgba(92,255,176,.35); }
+.rev.bad { border-color: rgba(255,110,150,.4); }
+.rev .mark { font-weight: 900; flex: 0 0 auto; }
+.rev.ok .mark { color: #5cffb0; }
+.rev.bad .mark { color: #ff6e96; }
+.rev .q { color: var(--ink); flex: 1 1 auto; line-height: 1.5; }
+.rev .ans { color: var(--ink-dim); flex: 0 0 auto; }
 .raction { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 
 .board .lb { list-style: none; display: flex; flex-direction: column; gap: 7px; }
