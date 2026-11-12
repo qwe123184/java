@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fenglin.springboottest.common.*;
 import com.fenglin.springboottest.entity.*;
 import com.fenglin.springboottest.mapper.*;
+import com.fenglin.springboottest.service.AchievementService;
 import com.fenglin.springboottest.service.GameService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,7 @@ public class GameServiceImpl implements GameService {
     @Autowired private UserGameStatMapper userGameStatMapper;
     @Autowired private UserStageMapper userStageMapper;
     @Autowired private UserMapper userMapper;
+    @Autowired private AchievementService achievementService;
 
     // ===================== 工具方法 =====================
 

@@ -22,6 +22,12 @@ public class StageProgressVO {
     private int bestStreak;
     private int progressPercent;    // 基于已突破境界，0~100
 
+    // 守夜人等级（由 exp 派生）：让长期闲置的经验产生成长反馈
+    private int level;
+    private String levelTitle;
+    private int levelPercent;       // 当前等级内进度 0~99
+    private int expToNext;          // 距离下一级还差多少经验
+
     public StageProgressVO() {
     }
 
@@ -53,4 +59,12 @@ public class StageProgressVO {
     public void setBestStreak(int bestStreak) { this.bestStreak = bestStreak; }
     public int getProgressPercent() { return progressPercent; }
     public void setProgressPercent(int progressPercent) { this.progressPercent = progressPercent; }
+    public int getLevel() { return level; }
+    public void setLevel(int level) { this.level = level; }
+    public String getLevelTitle() { return levelTitle; }
+    public void setLevelTitle(String levelTitle) { this.levelTitle = levelTitle; }
+    public int getLevelPercent() { return levelPercent; }
+    public void setLevelPercent(int levelPercent) { this.levelPercent = levelPercent; }
+    public int getExpToNext() { return expToNext; }
+    public void setExpToNext(int expToNext) { this.expToNext = expToNext; }
 }

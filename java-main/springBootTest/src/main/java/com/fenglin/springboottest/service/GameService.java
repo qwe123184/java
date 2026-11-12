@@ -13,6 +13,7 @@ import com.fenglin.springboottest.common.StageProgressVO;
 import com.fenglin.springboottest.common.StageStartVO;
 import com.fenglin.springboottest.common.StageSubmitRequest;
 import com.fenglin.springboottest.common.StageSubmitVO;
+import com.fenglin.springboottest.common.GameStatVO;
 
 import java.util.List;
 import java.util.Map;
@@ -28,6 +29,9 @@ public interface GameService {
     Result<StageStartVO> stageStart(Long userId);
     Result<StageSubmitVO> stageSubmit(Long userId, StageSubmitRequest req);
     Result<List<LeaderboardVO>> stageLeaderboard();
+
+    /** 当前用户的三款小游戏（对决 / 答题 / 反应）战绩汇总 */
+    GameStatVO getGameStat(Long userId);
 
     // ===== 对决擂台 =====
     Result<DuelRoomVO> createDuel(Long userId, DuelCreateRequest req);

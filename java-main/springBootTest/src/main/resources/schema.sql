@@ -193,3 +193,17 @@ CREATE TABLE IF NOT EXISTS `zhan_shen`.`t_user_stage` (
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_general_ci;
+
+-- 用户成就解锁记录（成就系统：基于闯关/对决/答题/反应等成长数据自动解锁）
+-- (user_id, achievement_key) 唯一约束防止同一成就重复解锁。
+CREATE TABLE IF NOT EXISTS `zhan_shen`.`t_user_achievement` (
+  `id`              BIGINT       NOT NULL AUTO_INCREMENT,
+  `user_id`         BIGINT       NOT NULL COMMENT '守夜人 id',
+  `achievement_key` VARCHAR(40)  NOT NULL COMMENT '成就 key（对应 AchievementConfig.DEFS）',
+  `unlocked_at`     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '解锁时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_ach` (`user_id`, `achievement_key`),
+  KEY `idx_user_ach_user` (`user_id`)
+) ENGINE=InnoDB
+  DEFAULT CHARSET=utf8mb4
+  COLLATE=utf8mb4_general_ci;

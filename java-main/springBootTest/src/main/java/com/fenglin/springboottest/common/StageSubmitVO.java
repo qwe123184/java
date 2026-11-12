@@ -22,6 +22,9 @@ public class StageSubmitVO {
     private int bestStreak;
     private String message;
 
+    /** 本场试炼新解锁的成就（即时奖励提示），无则空列表 */
+    private List<AchievementVO> newlyUnlocked;
+
     /** 每题作答解析（正确答案 vs 玩家选择），用于结果页复盘 */
     private List<AnswerReview> review;
 
@@ -57,6 +60,9 @@ public class StageSubmitVO {
 
     public List<AnswerReview> getReview() { return review; }
     public void setReview(List<AnswerReview> review) { this.review = review; }
+
+    public List<AchievementVO> getNewlyUnlocked() { return newlyUnlocked; }
+    public void setNewlyUnlocked(List<AchievementVO> newlyUnlocked) { this.newlyUnlocked = newlyUnlocked; }
 
     public StageSubmitVO() {
     }
