@@ -71,6 +71,35 @@ public class GameServiceImpl implements GameService {
         return "tomjerry".equalsIgnoreCase(theme) ? "tomjerry" : "shenyu";
     }
 
+    // ===================== 个人中心 · 三款小游戏战绩汇总 =====================
+
+    /**
+     * 读取当前用户的对决 / 答题 / 反应试炼战绩。
+     * 使用只读查询：尚未产生任何战绩（表中无记录）时返回全 0 的 VO，
+     * 避免在个人中心这类查询接口里写入数据库。
+     */
+    @Override
+    public GameStatVO getGameStat(Long userId) {
+        GameStatVO vo = new GameStatVO();
+        if (userId == null) return vo;
+        UserGameStat s = userGameStatMapper.selectById(userId);
+        if (s == null) return vo;
+        vo.setDuelWins(nz(s.getDuelWins()));
+        vo.setDuelLosses(nz(s.getDuelLosses()));
+        vo.setDuelDraws(nz(s.getDuelDraws()));
+        vo.setQuizWins(nz(s.getQuizWins()));
+        vo.setQuizLosses(nz(s.getQuizLosses()));
+        vo.setQuizBestScore(nz(s.getQuizBestScore()));
+        vo.setReactionBestMs(nz(s.getReactionBestMs()));
+        vo.setReactionPlays(nz(s.getReactionPlays()));
+        return vo;
+    }
+
+    /** 数据库的 nullable 计数字段统一按 0 处理，防止历史脏数据导致 NPE */
+    private static int nz(Integer v) {
+        return v == null ? 0 : v;
+    }
+
     // ===================== 对决擂台 =====================
 
     @Override

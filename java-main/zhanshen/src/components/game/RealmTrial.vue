@@ -29,7 +29,30 @@ const board = ref([])
 const loading = ref(false)
 const showBreakthrough = ref(false)
 const toast = ref({ show: false, msg: '' })
+const submitError = ref('')   // 提交失败原因，常驻显示，避免只靠一闪而过的 toast
 let toastTimer
+let autoSubmitTimer
+
+// 后端统一返回 { code, msg, data }；异常时 axios 的 response.data 仍是这个结构，
+// 旧代码只读 message，真实原因永远取不到，界面只显示「提交失败」。
+function errMsg(e, fallback) {
+  return e?.response?.data?.msg || e?.response?.data?.message || e?.message || fallback
+}
+
+function cancelAutoSubmit() {
+  clearTimeout(autoSubmitTimer)
+  autoSubmitTimer = null
+}
+
+// 最后一题作答完毕后自动提交；期间若用户点题号回去改答案，取消自动提交，改为手动提交。
+function scheduleAutoSubmit() {
+  cancelAutoSubmit()
+  if (phase.value !== 'quiz' || loading.value || !allAnswered.value) return
+  autoSubmitTimer = setTimeout(() => {
+    autoSubmitTimer = null
+    if (phase.value === 'quiz' && allAnswered.value && !loading.value) submit()
+  }, 900)
+}
 
 const q = computed(() => items.value[currentQ.value] || null)
 const answeredCount = computed(() => Object.keys(picked.value).length)
@@ -54,7 +77,7 @@ async function loadProgress() {
     const { data } = await stageProgress()
     if (data?.code === 0) progress.value = data.data
   } catch (e) {
-    showToast(e?.response?.data?.message || '加载进度失败')
+    showToast(errMsg(e, '加载进度失败'))
   }
 }
 
@@ -75,37 +98,46 @@ async function start() {
       currentQ.value = 0
       picked.value = {}
       result.value = null
+      submitError.value = ''
+      cancelAutoSubmit()
       phase.value = 'quiz'
     } else {
       showToast(data?.msg || '无法开启试炼')
     }
   } catch (e) {
-    showToast(e?.response?.data?.message || '开启试炼失败')
+    showToast(errMsg(e, '开启试炼失败'))
   } finally {
     loading.value = false
   }
 }
 
 function choose(choice) {
-  if (!q.value) return
+  if (!q.value || loading.value) return
+  cancelAutoSubmit()
   picked.value = { ...picked.value, [q.value.id]: choice }
   // 选完自动跳到下一道未作答的题（最后一题除外）
   if (currentQ.value < items.value.length - 1) {
     const next = items.value.findIndex((it, i) => i > currentQ.value && picked.value[it.id] == null)
     if (next !== -1) currentQ.value = next
   }
+  scheduleAutoSubmit()
 }
 
 function goTo(i) {
-  if (i >= 0 && i < items.value.length) currentQ.value = i
+  if (i < 0 || i >= items.value.length) return
+  // 主动切题视为「还要检查答案」，取消自动提交，改由下方按钮手动提交
+  cancelAutoSubmit()
+  currentQ.value = i
 }
 function isAnswered(item) {
   return picked.value[item.id] != null
 }
 
 async function submit() {
-  if (!items.value.length || !allAnswered.value) return
+  cancelAutoSubmit()
+  if (!items.value.length || !allAnswered.value || loading.value || phase.value !== 'quiz') return
   loading.value = true
+  submitError.value = ''
   try {
     const answers = Object.entries(picked.value).map(([questionId, choice]) => ({
       questionId: Number(questionId),
@@ -113,7 +145,8 @@ async function submit() {
     }))
     const key = realmKey.value || progress.value?.currentRealmKey
     if (!key) {
-      showToast('试炼状态异常，请重新开启试炼')
+      submitError.value = '试炼状态异常，请返回境界之路重新开启试炼。'
+      showToast(submitError.value)
       return
     }
     const { data } = await stageSubmit(key, answers)
@@ -123,10 +156,12 @@ async function submit() {
       await loadProgress()
       if (data.data.passed) triggerBreakthrough()
     } else {
-      showToast(data?.msg || '提交失败')
+      submitError.value = data?.msg || '提交失败，请重试。'
+      showToast(submitError.value)
     }
   } catch (e) {
-    showToast(e?.response?.data?.message || '提交失败')
+    submitError.value = errMsg(e, '提交失败，请检查网络或重新开启试炼。')
+    showToast(submitError.value)
   } finally {
     loading.value = false
   }
@@ -210,9 +245,11 @@ onMounted(() => {
         <button class="ghost" :disabled="currentQ === 0" @click="goTo(currentQ - 1)">上一题</button>
         <button class="ghost" :disabled="currentQ >= items.length - 1" @click="goTo(currentQ + 1)">下一题</button>
       </div>
+      <div v-if="submitError" class="submit-error">{{ submitError }}</div>
       <button class="primary next" :disabled="!allAnswered || loading" @click="submit">
-        {{ answeredCount === items.length ? '提交试炼' : '请答完全部题目（' + answeredCount + '/' + items.length + '）' }}
+        {{ loading ? '提交中…' : (allAnswered ? '提交试炼' : '请答完全部题目（' + answeredCount + '/' + items.length + '）') }}
       </button>
+      <p v-if="allAnswered && !loading" class="auto-hint">已答完全部题目，稍后将自动提交；想修改答案请点上方题号。</p>
     </section>
 
     <section v-if="phase === 'result' && result" class="panel result">
@@ -333,6 +370,8 @@ onMounted(() => {
 .opt .lab { width: 26px; height: 26px; flex: 0 0 26px; display: grid; place-items: center; border-radius: 8px; font-weight: 800; background: rgba(120,150,255,.1); color: var(--g-accent); }
 .opt.on .lab { background: linear-gradient(135deg, var(--g-accent), var(--g-accent3)); color: #04050d; }
 .next { width: 100%; margin-top: 16px; }
+.submit-error { margin-top: 14px; padding: 10px 14px; border-radius: 10px; background: rgba(255,110,150,.12); border: 1px solid rgba(255,110,150,.45); color: #ffd9e6; font-size: 13.5px; line-height: 1.6; }
+.auto-hint { margin: 10px 0 0; text-align: center; color: var(--ink-dim); font-size: 12.5px; }
 
 .result .verdict { text-align: center; padding: 8px 0 16px; }
 .result .verdict h3 { margin: 0 0 8px; font-size: 24px; color: var(--pink); letter-spacing: .1em; }

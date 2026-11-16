@@ -65,7 +65,7 @@ echo   ZhanShen backend (port %PORT%)
 echo   Minimize this window freely - closing it stops the backend.
 echo ============================================================
 echo.
-"%JAVA_HOME%\bin\java.exe" -Dfile.encoding=UTF-8 -jar "%JAR%" 2>&1 | "%PS_TEE%" -NoProfile -Command "$input | Tee-Object -FilePath '%LOG%' -Append"
+"%JAVA_HOME%\bin\java.exe" -Dfile.encoding=UTF-8 -Dserver.port=8081 -jar "%JAR%" 2>&1 | "%PS_TEE%" -NoProfile -Command "$input | Tee-Object -FilePath '%LOG%' -Append"
 set "RC=%errorlevel%"
 echo.
 echo [EXIT] Backend stopped, exit code %RC%. Full log: %LOG%
